@@ -17,18 +17,12 @@ main(int p_numArgs, char** p_args)
     VkInstance instance;
     VK_CHECK(vkCreateInstance(&instanceInfo, nullptr, &instance));
     volkLoadInstance(instance);
-    struct CcbContext context;
-    int result = ccbInitContext(&context, instance, 0u);
-    if (result != CCB_SUCCESS) {
-        printf("%d\n", result);
-        ccbDestroyContext(&context);
-        return -1;
-    }
-    ccbMalloc(&context, 1ull << 20, 1ull << 20);
-    //FILE* fp = fopen("info.txt", "w");
-    //std::print(stdout, "{}\n", device);
-    //fclose(fp);
-    ccbDestroyContext(&context);
+    auto pContext = malloc(sizeof(struct CcbContext));
+    ccbContextInit(pContext, instance, 0u);
+    ccbMalloc(pContext, 1ull << 20, 1ull << 20);
+    ccbContextPrint(pContext, stdout);
+    ccbContextDestroy(pContext);
+    free(pContext);
     vkDestroyInstance(instance, nullptr);
 
     return 0;

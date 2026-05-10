@@ -10,6 +10,8 @@
 #define VOLK_NO_PROTOTYPE
 #include <volk/volk.h>
 
+#include "Macro/Nonnull.h"
+
 typedef _Float16 float16_t;
 typedef __bf16   bfloat16_t;
 

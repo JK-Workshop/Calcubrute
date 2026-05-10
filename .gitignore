@@ -1,5 +1,6 @@
 .git/
 .vscode/
 bin/
+lib/
 debug/
 release/

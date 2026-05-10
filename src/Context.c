@@ -2,10 +2,13 @@
 
 #include <JK/Calcubrute/Context.h>
 
+constexpr uint32_t DEVICE_VENDOR_AMD   = 0x1002u;
+constexpr uint32_t DEVICE_VENDOR_INTEL = 0x8086u;
+constexpr uint32_t DEVICE_VENDOR_NV    = 0x10DEu;
+//constexpr uint32_t DEVICE_VENDER_ARM   =
+
 static uint32_t                      s_numExtensions;
 static struct VkExtensionProperties* s_extensions = nullptr;
-
-struct DeviceAttributes deviceAttributes;
 
 /**
  * @brief Retrieve the whole extension list from the specified p_physicalDevice
@@ -14,7 +17,7 @@ struct DeviceAttributes deviceAttributes;
  * @return int CCB_SUCCESS on success, CCB_MALLOC_ERROR on failure
  */
 static inline int
-initContextGetExtensions(const VkPhysicalDevice p_physicalDevice)
+contextInitGetExtensions(const VkPhysicalDevice p_physicalDevice)
 {
     VK_CHECK(vkEnumerateDeviceExtensionProperties(p_physicalDevice, nullptr, &s_numExtensions, nullptr));
     CCB_REALLOC(struct VkExtensionProperties, s_extensions, s_numExtensions); // Freed inside ccbInitContext
@@ -23,34 +26,34 @@ initContextGetExtensions(const VkPhysicalDevice p_physicalDevice)
 }
 
 /**
- * @brief Loop through physical device groups and pick the one specified by p_deviceIndex.
+ * @brief Loop through physical device groups and pick the one specified by p_deviceGroupIndex.
  * 
- * @param po_numPhysicalDevices set to the number of physical devices in this group
- * @param po_physicalDeviceList set to the list of VkPhysicalDevice's in this group
+ * @param p_context
  * @param p_instance VkInstance to be queried
- * @param p_deviceIndex index into detected device group list, specifying the group to be picked
+ * @param p_deviceGroupIndex index into detected device group list, specifying the group to be picked
  * @return int CCB_SUCCESS on success, CCB_ARGUMENT_ERROR, CCB_MALLOC_ERROR on failure
  */
 static inline int
-initContextSetPhysicalDevice(uint32_t* const   po_numPhysicalDevices,
-                             VkPhysicalDevice* po_physicalDeviceList,
-                             const VkInstance  p_instance,
-                             const uint32_t    p_deviceIndex)
+contextInitPickDeviceGroup(struct CcbContext* const p_context,
+                           const VkInstance         p_instance,
+                           const uint32_t           p_deviceGroupIndex)
 {
-    // Invalidate
-    *po_numPhysicalDevices = UINT32_MAX;
-
     // List and check device group properties
     uint32_t numDeviceGroups;
     VK_CHECK(vkEnumeratePhysicalDeviceGroups(p_instance, &numDeviceGroups, nullptr));
-    if (p_deviceIndex >= numDeviceGroups) {
+    if (p_deviceGroupIndex >= numDeviceGroups) {
         return CCB_ARGUMENT_ERROR;
     }
     CCB_MALLOC(struct VkPhysicalDeviceGroupProperties, deviceGroupProps, numDeviceGroups);
-    CCB_INIT_VK_STRUCT_ARRAY(deviceGroupProps, numDeviceGroups, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES, nullptr);
+    CCB_INIT_VK_STRUCT_ARRAY(deviceGroupProps,
+                             numDeviceGroups,
+                             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
+                             nullptr);
     VK_CHECK(vkEnumeratePhysicalDeviceGroups(p_instance, &numDeviceGroups, deviceGroupProps));
-    *po_numPhysicalDevices = deviceGroupProps[p_deviceIndex].physicalDeviceCount;
-    memcpy(po_physicalDeviceList, deviceGroupProps[p_deviceIndex].physicalDevices, *po_numPhysicalDevices * sizeof(VkPhysicalDevice));
+    p_context->numPhysicalDevices = deviceGroupProps[p_deviceGroupIndex].physicalDeviceCount;
+    memcpy(p_context->physicalDevices,
+           deviceGroupProps[p_deviceGroupIndex].physicalDevices,
+           p_context->numPhysicalDevices * sizeof(VkPhysicalDevice));
     CCB_FREE(deviceGroupProps);
     return CCB_SUCCESS;
 }
@@ -58,21 +61,21 @@ initContextSetPhysicalDevice(uint32_t* const   po_numPhysicalDevices,
 /**
  * @brief 
  * 
- * @param p_physicalDevice 
+ * @param p_context 
  * @return int 
  */
 static inline int
-initContextSetQueueFamilyIndices(const VkPhysicalDevice p_physicalDevice)
+contextInitLocateQueueFamilyIndices(struct CcbContext* const p_context)
 {
     uint32_t numQueueFamilies;
-    vkGetPhysicalDeviceQueueFamilyProperties2(p_physicalDevice, &numQueueFamilies, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties2(p_context->physicalDevices[0], &numQueueFamilies, nullptr);
     struct VkQueueFamilyProperties2 queueFamilyProps[8];
     CCB_INIT_VK_STRUCT_ARRAY(queueFamilyProps, 8, VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2, nullptr);
-    vkGetPhysicalDeviceQueueFamilyProperties2(p_physicalDevice, &numQueueFamilies, queueFamilyProps);
+    vkGetPhysicalDeviceQueueFamilyProperties2(p_context->physicalDevices[0], &numQueueFamilies, queueFamilyProps);
 
     // Invalidate
-    deviceAttributes.transferQueueFamilyIndex = -1;
-    deviceAttributes.computeQueueFamilyIndex  = -1;
+    p_context->transferQueueFamilyIndex = -1;
+    p_context->computeQueueFamilyIndex  = -1;
 
     // Ties broken by ascending order of index
     for (int i = numQueueFamilies - 1; i >= 0; --i) {
@@ -83,20 +86,20 @@ initContextSetQueueFamilyIndices(const VkPhysicalDevice p_physicalDevice)
                 (VK_QUEUE_TRANSFER_BIT | VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)
             ) == VK_QUEUE_TRANSFER_BIT)
         {
-            deviceAttributes.transferQueueFamilyIndex = i;
+            p_context->transferQueueFamilyIndex = i;
         }
         // If failed, then locate any queue family with transfer capability
-        else if (deviceAttributes.transferQueueFamilyIndex == -1 && (flags & VK_QUEUE_TRANSFER_BIT)) {
-            deviceAttributes.transferQueueFamilyIndex = i;
+        else if (p_context->transferQueueFamilyIndex == -1 && (flags & VK_QUEUE_TRANSFER_BIT)) {
+            p_context->transferQueueFamilyIndex = i;
         }
 
         // Locate compute queue family
         if (flags & VK_QUEUE_COMPUTE_BIT) {
-            deviceAttributes.computeQueueFamilyIndex = i;
+            p_context->computeQueueFamilyIndex = i;
         }
     }
 
-    if (deviceAttributes.transferQueueFamilyIndex == -1 || deviceAttributes.computeQueueFamilyIndex  == -1) {
+    if (p_context->transferQueueFamilyIndex == -1 || p_context->computeQueueFamilyIndex == -1) {
         return CCB_QUEUE_FAMILY_MISS;
     }
     return CCB_SUCCESS;
@@ -105,17 +108,11 @@ initContextSetQueueFamilyIndices(const VkPhysicalDevice p_physicalDevice)
 /**
  * @brief 
  * 
- * @param p_device 
- * @param po_timelineSemaphore 
+ * @param p_context
  */
 static inline void
-initContextSetTimelineSemaphore(const VkDevice     p_device,
-                                VkSemaphore* const po_timelineSemaphore)
+contextInitCreateTimelineSemaphore(struct CcbContext* const p_context)
 {
-    if (*po_timelineSemaphore != VK_NULL_HANDLE) {
-        vkDestroySemaphore(p_device, *po_timelineSemaphore, nullptr);
-        *po_timelineSemaphore = VK_NULL_HANDLE;
-    }
     struct VkSemaphoreTypeCreateInfo semaphoreTypeInfo = {
         .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
         .pNext         = nullptr,
@@ -127,28 +124,119 @@ initContextSetTimelineSemaphore(const VkDevice     p_device,
         .pNext         = &semaphoreTypeInfo,
         .flags         = 0u
     };
-    VK_CHECK(vkCreateSemaphore(p_device, &semaphoreInfo, nullptr, po_timelineSemaphore));
+    VK_CHECK(vkCreateSemaphore(p_context->device, &semaphoreInfo, nullptr, &p_context->timelineSemaphore));
 }
 
-int
-ccbInitContext(struct CcbContext* const p_context,
+/**
+ * @brief 
+ * 
+ * @param p_context 
+ */
+static inline void
+contextInitGetTensorCoreProperties(struct CcbContext* const p_context)
+{
+    bool hasCoopMatKHR = false;
+    bool hasCoopMat2NV = false;
+    bool hasCoopVecNV  = false;
+
+    for (uint32_t i = 0; i < s_numExtensions; ++i) {
+        if (strcmp(s_extensions->extensionName, VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME) == 0) {
+            hasCoopMatKHR = true;
+        }
+        else if (strcmp(s_extensions->extensionName, VK_NV_COOPERATIVE_MATRIX_2_EXTENSION_NAME) == 0) {
+            hasCoopMat2NV = true;
+        }
+        else if (strcmp(s_extensions->extensionName, VK_NV_COOPERATIVE_VECTOR_EXTENSION_NAME) == 0) {
+            hasCoopVecNV = true;
+        }
+    }
+
+    uint32_t numProps;
+    if (hasCoopMat2NV) {
+        //VkCooperativeMatrix2PropertiesNV
+    }
+    struct VkCooperativeMatrixPropertiesKHR coopMatProps[64];
+    VK_CHECK(vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR(p_context->physicalDevices[0], &numProps, nullptr));
+    VK_CHECK(vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR(p_context->physicalDevices[0], &numProps, coopMatProps));
+}
+
+static inline void
+contextInitGetPropertiesNV(struct CcbContext* const            p_context,
+                           VkPhysicalDeviceProperties2*        p_prop,
+                           VkPhysicalDeviceVulkan14Properties* p_vk14Prop)
+{
+    struct VkPhysicalDevicePushConstantBankPropertiesNV pcBankProp = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_CONSTANT_BANK_PROPERTIES_NV, p_vk14Prop};
+    struct VkPhysicalDeviceShaderSMBuiltinsPropertiesNV smProp = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SM_BUILTINS_PROPERTIES_NV, &pcBankProp};
+    p_prop->pNext = &smProp;
+    vkGetPhysicalDeviceProperties2(p_context->physicalDevices[0], p_prop);
+    p_context->maxNumPushConstBanks                   = pcBankProp.maxComputePushConstantBanks;
+    p_context->maxNumPushDataBanks                    = pcBankProp.maxComputePushDataBanks;
+    p_context->numStreamingMultiprocessors            = smProp.shaderSMCount;
+    p_context->numSubgroupsPerStreamingMultiprocessor = smProp.shaderWarpsPerSM;
+}
+
+/**
+ * @brief 
+ * 
+ * @param p_context
+ */
+static inline void
+contextInitGetProperties(struct CcbContext* const p_context)
+{
+    // Get physical device vender
+    struct VkPhysicalDeviceProperties2 prop = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, nullptr};
+    vkGetPhysicalDeviceProperties2(p_context->physicalDevices[0], &prop);
+    p_context->vendorID = prop.properties.vendorID;
+
+    // Get physical device other properties
+    struct VkPhysicalDeviceVulkan11Properties vk11Prop = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES, nullptr};
+    struct VkPhysicalDeviceVulkan12Properties vk12Prop = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES, &vk11Prop};
+    struct VkPhysicalDeviceVulkan13Properties vk13Prop = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES, &vk12Prop};
+    struct VkPhysicalDeviceVulkan14Properties vk14Prop = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_PROPERTIES, &vk13Prop};
+    switch (p_context->vendorID) {
+        case DEVICE_VENDOR_AMD:
+            vkGetPhysicalDeviceProperties2(p_context->physicalDevices[0], &prop);
+            break;
+        case DEVICE_VENDOR_INTEL:
+            vkGetPhysicalDeviceProperties2(p_context->physicalDevices[0], &prop);
+            break;
+        case DEVICE_VENDOR_NV:
+            contextInitGetPropertiesNV(p_context, &prop, &vk14Prop);
+            break;
+        default:
+            vkGetPhysicalDeviceProperties2(p_context->physicalDevices[0], &prop);
+    }
+    memcpy(p_context->deviceName, prop.properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
+    memcpy(p_context->driverName, vk12Prop.driverName, VK_MAX_DRIVER_NAME_SIZE * sizeof(char));
+    memcpy(p_context->driverInfo, vk12Prop.driverInfo, VK_MAX_DRIVER_INFO_SIZE * sizeof(char));
+    p_context->vulkanVersion                = prop.properties.apiVersion;
+    p_context->maxPushConstSize             = prop.properties.limits.maxPushConstantsSize;
+    p_context->maxUniformBufferSize         = prop.properties.limits.maxUniformBufferRange;
+    p_context->maxWorkgroupMemorySize       = prop.properties.limits.maxComputeSharedMemorySize;
+    p_context->maxMallocSize                = vk11Prop.maxMemoryAllocationSize;
+    p_context->minNumInvocationsPerSubgroup = vk13Prop.minSubgroupSize;
+    p_context->maxNumInvocationsPerSubgroup = vk13Prop.maxSubgroupSize;
+}
+
+inline int
+ccbContextInit(struct CcbContext* const p_context,
                const VkInstance         p_instance,
-               const uint32_t           p_deviceIndex)
+               const uint32_t           p_deviceGroupIndex)
 {
     // Invalidate
     p_context->device            = VK_NULL_HANDLE;
     p_context->timelineSemaphore = VK_NULL_HANDLE;
 
-    CCB_RETURN_ON_FAIL(initContextSetPhysicalDevice(&p_context->numPhysicalDevices, p_context->physicalDevices, p_instance, p_deviceIndex));
-    CCB_RETURN_ON_FAIL(initContextSetQueueFamilyIndices(p_context->physicalDevices[0]));
+    CCB_RETURN_ON_FAIL(contextInitPickDeviceGroup(p_context, p_instance, p_deviceGroupIndex));
+    CCB_RETURN_ON_FAIL(contextInitLocateQueueFamilyIndices(p_context));
 
-    float priority = 1.0f;
+    const float priority = 1.0f;
     struct VkDeviceQueueCreateInfo queueInfos[2] = {
         {
             .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .pNext            = nullptr,
             .flags            = 0,
-            .queueFamilyIndex = deviceAttributes.transferQueueFamilyIndex,
+            .queueFamilyIndex = p_context->transferQueueFamilyIndex,
             .queueCount       = 1,
             .pQueuePriorities = &priority
         },
@@ -156,7 +244,7 @@ ccbInitContext(struct CcbContext* const p_context,
             .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .pNext            = nullptr,
             .flags            = 0,
-            .queueFamilyIndex = deviceAttributes.computeQueueFamilyIndex,
+            .queueFamilyIndex = p_context->computeQueueFamilyIndex,
             .queueCount       = 1,
             .pQueuePriorities = &priority
         }
@@ -177,14 +265,15 @@ ccbInitContext(struct CcbContext* const p_context,
     VK_CHECK(vkCreateDevice(p_context->physicalDevices[0], &deviceInfo, nullptr, &p_context->device));
     volkLoadDevice(p_context->device);
 
-    initContextSetTimelineSemaphore(p_context->device, &p_context->timelineSemaphore);
+    contextInitGetProperties(p_context);
+    contextInitCreateTimelineSemaphore(p_context);
 
     CCB_FREE(s_extensions);
     return CCB_SUCCESS;
 }
 
-void
-ccbDestroyContext(struct CcbContext* const p_context)
+inline void
+ccbContextDestroy(struct CcbContext* const p_context)
 {
     if (p_context->hostVisibleMemory != VK_NULL_HANDLE) {
         ccbFree(p_context);
@@ -196,5 +285,54 @@ ccbDestroyContext(struct CcbContext* const p_context)
     if (p_context->device != VK_NULL_HANDLE) {
         vkDestroyDevice(p_context->device, nullptr);
         p_context->device = VK_NULL_HANDLE;
+    }
+}
+
+inline void
+ccbContextPrint(const struct CcbContext* const p_context,
+                FILE*                          p_fp)
+{
+    fprintf(p_fp,
+            "[Calcubrute]\n"
+            "\tDevice: (%s)x%u\n"
+            "\tDriver: %s %s\n"
+            "\tVulkan Version: %u.%u.%u\n"
+            "\tMax Push Constant Size: 0x%x\n"
+            "\tMax Uniform Buffer Size: 0x%x\n"
+            "\tMax Workgroup Memory Size: 0x%x\n"
+            "\tMax Memory Allocation Size: 0x%llx\n"
+            "\tMin Number of Invocations per Subgroup: %u\n"
+            "\tMax Number of Invocations per Subgroup: %u\n"
+            "\tTransfer Queue Family Index: %u\n"
+            "\tCompute Queue Family Index: %u\n",
+            p_context->deviceName, p_context->numPhysicalDevices,
+            p_context->driverName, p_context->driverInfo,
+            VK_API_VERSION_MAJOR(p_context->vulkanVersion),
+            VK_API_VERSION_MINOR(p_context->vulkanVersion),
+            VK_API_VERSION_PATCH(p_context->vulkanVersion),
+            p_context->maxPushConstSize,
+            p_context->maxUniformBufferSize,
+            p_context->maxWorkgroupMemorySize,
+            p_context->maxMallocSize,
+            p_context->minNumInvocationsPerSubgroup,
+            p_context->maxNumInvocationsPerSubgroup,
+            p_context->transferQueueFamilyIndex,
+            p_context->computeQueueFamilyIndex);
+    switch (p_context->vendorID) {
+        case DEVICE_VENDOR_AMD:
+            break;
+        case DEVICE_VENDOR_INTEL:
+            break;
+        case DEVICE_VENDOR_NV:
+            fprintf(p_fp,
+                    "\tMax Number of Push Constant Banks: %u\n"
+                    "\tMax Number of Push Data Banks: %u\n"
+                    "\tNumber of Streaming Multiprocessors: %u\n"
+                    "\tNumber of Subgroups per Streaming Multiprocessor: %u\n",
+                    p_context->maxNumPushConstBanks,
+                    p_context->maxNumPushDataBanks,
+                    p_context->numStreamingMultiprocessors,
+                    p_context->numSubgroupsPerStreamingMultiprocessor);
+            break;
     }
 }

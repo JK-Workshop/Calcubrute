@@ -13,8 +13,19 @@
 //    VK_KHR_DEVICE_ADDRESS_COMMAND_EXTENSION_NAME
 //};
 
-struct DeviceAttributes
+struct CcbContext
 {
+    VkDevice         device;
+    VkPhysicalDevice physicalDevices[VK_MAX_DEVICE_GROUP_SIZE];
+    uint32_t         numPhysicalDevices;
+    VkDeviceMemory   hostVisibleMemory;
+    VkDeviceMemory   deviceLocalMemory;
+    uint8_t*         hostVisibleHostBase;
+    uint64_t         hostVisibleDeviceBase;
+    uint64_t         deviceLocalDeviceBase;
+    //PageTable        pageTables[VK_MAX_DEVICE_GROUP_SIZE];
+    VkSemaphore      timelineSemaphore;
+    // Device properties
     uint32_t         vendorID;
     char             deviceName[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
     char             driverName[VK_MAX_DRIVER_NAME_SIZE];
@@ -42,88 +53,26 @@ struct DeviceAttributes
             uint32_t numSubgroupsPerStreamingMultiprocessor;
         };
     };
-}; // struct DeviceAttributes
-
-extern struct DeviceAttributes deviceAttributes;
-
-struct CcbContext
-{
-    VkDevice         device;
-    VkPhysicalDevice physicalDevices[VK_MAX_DEVICE_GROUP_SIZE];
-    uint32_t         numPhysicalDevices;
-    VkDeviceMemory   hostVisibleMemory;
-    VkDeviceMemory   deviceLocalMemory;
-    uint8_t*         hostVisibleHostBase;
-    uint64_t         hostVisibleDeviceBase;
-    uint64_t         deviceLocalDeviceBase;
-    //PageTable        pageTables[VK_MAX_DEVICE_GROUP_SIZE];
-    VkSemaphore      timelineSemaphore;
-}; // struct Device
-
-constexpr uint32_t DEVICE_VENDOR_AMD   = 0x1002u;
-constexpr uint32_t DEVICE_VENDOR_INTEL = 0x8086u;
-constexpr uint32_t DEVICE_VENDOR_NV    = 0x10DEu;
-//constexpr uint32_t DEVICE_VENDER_ARM   =
+}; // struct CcbContext
 
 int
-ccbInitContext(struct CcbContext* const      p_context,
-               const VkInstance              p_instance,
-               const uint32_t                p_deviceIndex);
+ccbContextInit(struct CcbContext* const p_context JK_NONNULL(),
+               const VkInstance         p_instance,
+               const uint32_t           p_deviceIndex);
 
 void
-ccbDestroyContext(struct CcbContext* const p_context);
+ccbContextDestroy(struct CcbContext* const p_context JK_NONNULL());
 
 int
-ccbMalloc(struct CcbContext* const  p_context,
-          const size_t              p_hostVisibleSize,
-          const size_t              p_deviceLocalSize);
+ccbMalloc(struct CcbContext* const p_context JK_NONNULL(),
+          const size_t             p_hostVisibleSize,
+          const size_t             p_deviceLocalSize);
 
 void
-ccbFree(struct CcbContext* const p_context);
+ccbFree(struct CcbContext* const p_context JK_NONNULL());
 
-// void
-// ccbPrintContext(const FILE* p_fp,
-//                 const CCBContext& p_context) noexcept;
-//     std::print(p_fp,
-//                "Device: ({})x{}\n"
-//                "Driver: {} {}\n"
-//                "Vulkan Version: {}.{}.{}\n"
-//                "Max Push Constant Size: {:#08x}\n"
-//                "Max Uniform Buffer Size: {:#08x}\n"
-//                "Max Workgroup Memory Size: {:#08x}\n"
-//                "Max Memory Allocation Size: {:#16x}\n"
-//                "Min Number of Invocations per Subgroup: {}\n"
-//                "Max Number of Invocations per Subgroup: {}\n"
-//                "Transfer Queue Family Index: {}\n"
-//                "Compute Queue Family Index: {}\n",
-//                deviceAttributes.deviceName, p_device.numPhysicalDevices,
-//                deviceAttributes.driverName, deviceAttributes.driverInfo,
-//                VK_API_VERSION_MAJOR(deviceAttributes.vulkanVersion),
-//                VK_API_VERSION_MINOR(deviceAttributes.vulkanVersion),
-//                VK_API_VERSION_PATCH(deviceAttributes.vulkanVersion),
-//                deviceAttributes.maxPushConstSize,
-//                deviceAttributes.maxUniformBufferSize,
-//                deviceAttributes.maxWorkgroupMemorySize,
-//                deviceAttributes.maxMallocSize,
-//                deviceAttributes.minNumInvocationsPerSubgroup,
-//                deviceAttributes.maxNumInvocationsPerSubgroup,
-//                deviceAttributes.transferQueueFamilyIndex,
-//                deviceAttributes.computeQueueFamilyIndex);
-//         switch (deviceAttributes.vendorID) {
-//             case DEVICE_VENDOR_AMD:
-//                 break;
-//             case DEVICE_VENDOR_INTEL:
-//                 break;
-//             case DEVICE_VENDOR_NV:
-//                                      "Max Number of Push Constant Banks: {}\n"
-//                                      "Max Number of Push Data Banks: {}\n"
-//                                      "Number of Streaming Multiprocessors: {}\n"
-//                                      "Number of Subgroups per Streaming Multiprocessor: {}\n",
-//                                      deviceAttributes.maxNumPushConstBanks,
-//                                      deviceAttributes.maxNumPushDataBanks,
-//                                      deviceAttributes.numStreamingMultiprocessors,
-//                                      deviceAttributes.numSubgroupsPerStreamingMultiprocessor);
-//                 break;
-//         }
+void
+ccbContextPrint(const struct CcbContext* const p_context,
+                FILE*                          p_fp);
 
 #endif // JK_CALCUBRUTE_CONTEXT_H

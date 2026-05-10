@@ -5,7 +5,7 @@
 static VkBuffer s_hostVisibleBuffer = VK_NULL_HANDLE;
 static VkBuffer s_deviceLocalBuffer = VK_NULL_HANDLE;
 
-int
+inline int
 ccbMalloc(struct CcbContext* const p_context,
           const size_t             p_hostVisibleSize,
           const size_t             p_deviceLocalSize)
@@ -154,7 +154,7 @@ ccbMalloc(struct CcbContext* const p_context,
     return 0;
 }
 
-void
+inline void
 ccbFree(struct CcbContext* const p_context)
 {
     // Destory both global buffers

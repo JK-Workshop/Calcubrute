@@ -5,24 +5,45 @@
 
 #include <JK/Calcubrute/Common.h>
 
-extern spv_target_env SPV_ENV;
-
 struct CcbProgram
 {
     VkPipeline       pipeline;
     VkPipelineLayout pipelineLayout;
 }; // struct Shader
 
+extern struct VkSpecializationInfo                                g_shaderStageSpecializationInfo;
+extern struct VkPipelineShaderStageRequiredSubgroupSizeCreateInfo g_shaderStageSgSizeInfo;
+extern struct VkPipelineCreateFlags2CreateInfo                    g_pipelineFlagsInfo;
+extern struct VkComputePipelineCreateInfo                         g_pipelineInfo;
+extern void**                                                     g_pipelinePLast;
+extern void**                                                     g_shaderStagePLast;
+
 int
-ccbInitProgram(struct CcbContext* const p_context,
-               struct CcbProgram* const p_program,
-               const char*              p_path);
+ccbProgramInit(struct CcbProgram* const p_program JK_NONNULL(),
+               struct CcbContext* const p_context JK_NONNULL(),
+               const char*              p_path    JK_NONNULL());
 
 void
-ccbDestroyProgram(struct CcbProgram* const p_program);
+ccbProgramDestroy(struct CcbProgram* const p_program JK_NONNULL(),
+                  struct CcbContext* const p_context JK_NONNULL());
 
-int
-ccbFixSubgroupSize(struct CcbProgram* const p_program,
-                   const uint32_t           p_subgroupSize);
+void
+ccbProgramClear(void);
+
+void
+ccbProgramTemplate(const struct VkSpecializationMapEntry* p_mapEntries    JK_NONNULL(),
+                   const uint32_t                         p_numMapEntries,
+                   const void*                            p_data          JK_NONNULL(),
+                   const size_t                           p_dataSize);
+
+void
+ccbProgramFixSubgroupSize(const uint32_t p_subgroupSize);
+
+void
+ccbProgramVarySubgroupSize(void);
+
+void
+ccbProgramPrintStates(void);
+
 
 #endif // JK_CALCUBRUTE_PROGRAM_HPP

@@ -1,0 +1,70 @@
+OpCapability Int64
+OpCapability PhysicalStorageBufferAddresses
+OpCapability Shader
+OpCapability VulkanmemoryModel
+
+OpMemoryModel PhysicalStorageBuffer64 Vulkan
+OpEntryPoint GLCompute %main_f "main" %gid_v %pc_v
+OpExecutionMode %main_f LocalSize 1024 1 1
+
+; Debug
+
+; Annotations
+OpDecorate %gid_v BuiltIn GlobalInvocationId
+
+OpDecorate %f32e10_t ArrayStride 4
+
+OpDecorate %U64_t Block
+OpMemberDecorate %U64_t 0 Offset 0
+
+OpDecorate %F32e10F32e10_t Block
+OpMemberDecorate %F32e10F32e10_t 0 Offset 0
+OpMemberDecorate %F32e10F32e10_t 1 Offset 4096
+
+; Variable types
+%v_t               = OpTypeVoid
+%u32_t             = OpTypeInt 32 0
+%u64_t             = OpTypeInt 64 0
+%f32_t             = OpTypeFloat 32
+; Constants
+%_0u               = OpConstant %u32_t 0
+%_1u               = OpConstant %u32_t 1
+%_e10u             = OpConstant %u32_t 1024
+; Aggregate types
+%f32e10_t          = OpTypeArray %f32_t %_e10u
+%v3u32_t           = OpTypeVector %u32_t 3
+%U64_t             = OpTypeStruct %u64_t
+%F32e10F32e10_t    = OpTypeStruct %f32e10_t %f32e10_t
+; Function types
+%Vf_t              = OpTypeFunction %v_t
+; Type pointers
+%in_u32_t          = OpTypePointer Input %u32_t
+%in_v3u32_t        = OpTypePointer Input %v3u32_t
+%pc_u64_t          = OpTypePointer PushConstant %u64_t
+%pc_U64_t          = OpTypePointer PushConstant %U64_t
+%pt_F32e10F32e10_t = OpTypePointer PhysicalStorageBuffer %F32e10F32e10_t
+%pt_f32_t          = OpTypePointer PhysicalStorageBuffer %f32_t
+
+; Variables
+%gid_v             = OpVariable %in_v3u32_t Input
+%pc_v              = OpVariable %pc_U64_t PushConstant
+
+; void main()
+%main_f = OpFunction %v_t None %Vf_t
+%main_l = OpLabel
+  ; get px
+  %main_gx_p    = OpAccessChain %in_u32_t %gid_v %_0u
+  %main_gx      = OpLoad %u32_t %main_gx_p
+  ; get vec_p
+  %main_ptr_p   = OpAccessChain %pc_u64_t %pc_v %_0u
+  %main_ptr     = OpLoad %u64_t %main_ptr_p
+  %main_vec_p   = OpConvertUToPtr %pt_F32e10F32e10_t %main_ptr
+  ; add corresponding entries
+  %main_vec1_p  = OpAccessChain %pt_f32_t %main_vec_p %_0u %main_gx
+  %main_vec1_v  = OpLoad %f32_t %main_vec1_p Aligned 4
+  %main_vec2_p  = OpAccessChain %pt_f32_t %main_vec_p %_1u %main_gx
+  %main_vec2_v  = OpLoad %f32_t %main_vec2_p Aligned 4
+  %main_vecProd = OpFMul %f32_t %main_vec1_v %main_vec2_v
+                  OpStore %main_vec1_p %main_vecProd Aligned 4
+                  OpReturn
+OpFunctionEnd
