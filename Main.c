@@ -19,7 +19,7 @@ main(int p_numArgs, char** p_args)
     volkLoadInstance(instance);
     auto pContext = malloc(sizeof(struct CcbContext));
     ccbContextInit(pContext, instance, 0u);
-    ccbMalloc(pContext, 1ull << 20, 1ull << 20);
+    ccbMemoryAllocate(pContext, 1ull << 20, 1ull << 20);
     ccbContextPrint(pContext, stdout);
     ccbContextDestroy(pContext);
     free(pContext);

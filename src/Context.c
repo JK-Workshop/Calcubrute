@@ -276,7 +276,7 @@ inline void
 ccbContextDestroy(struct CcbContext* const p_context)
 {
     if (p_context->hostVisibleMemory != VK_NULL_HANDLE) {
-        ccbFree(p_context);
+        ccbMemoryFree(p_context);
     }
     if (p_context->timelineSemaphore != VK_NULL_HANDLE) {
         vkDestroySemaphore(p_context->device, p_context->timelineSemaphore, nullptr);
@@ -293,18 +293,17 @@ ccbContextPrint(const struct CcbContext* const p_context,
                 FILE*                          p_fp)
 {
     fprintf(p_fp,
-            "[Calcubrute]\n"
-            "\tDevice: (%s)x%u\n"
-            "\tDriver: %s %s\n"
-            "\tVulkan Version: %u.%u.%u\n"
-            "\tMax Push Constant Size: 0x%x\n"
-            "\tMax Uniform Buffer Size: 0x%x\n"
-            "\tMax Workgroup Memory Size: 0x%x\n"
-            "\tMax Memory Allocation Size: 0x%llx\n"
-            "\tMin Number of Invocations per Subgroup: %u\n"
-            "\tMax Number of Invocations per Subgroup: %u\n"
-            "\tTransfer Queue Family Index: %u\n"
-            "\tCompute Queue Family Index: %u\n",
+            "Device: (%s)x%u\n"
+            "Driver: %s %s\n"
+            "Vulkan Version: %u.%u.%u\n"
+            "Max Push Constant Size: 0x%x\n"
+            "Max Uniform Buffer Size: 0x%x\n"
+            "Max Workgroup Memory Size: 0x%x\n"
+            "Max Memory Allocation Size: 0x%llx\n"
+            "Min Number of Invocations per Subgroup: %u\n"
+            "Max Number of Invocations per Subgroup: %u\n"
+            "Transfer Queue Family Index: %u\n"
+            "Compute Queue Family Index: %u\n",
             p_context->deviceName, p_context->numPhysicalDevices,
             p_context->driverName, p_context->driverInfo,
             VK_API_VERSION_MAJOR(p_context->vulkanVersion),
@@ -325,10 +324,10 @@ ccbContextPrint(const struct CcbContext* const p_context,
             break;
         case DEVICE_VENDOR_NV:
             fprintf(p_fp,
-                    "\tMax Number of Push Constant Banks: %u\n"
-                    "\tMax Number of Push Data Banks: %u\n"
-                    "\tNumber of Streaming Multiprocessors: %u\n"
-                    "\tNumber of Subgroups per Streaming Multiprocessor: %u\n",
+                    "Max Number of Push Constant Banks: %u\n"
+                    "Max Number of Push Data Banks: %u\n"
+                    "Number of Streaming Multiprocessors: %u\n"
+                    "Number of Subgroups per Streaming Multiprocessor: %u\n",
                     p_context->maxNumPushConstBanks,
                     p_context->maxNumPushDataBanks,
                     p_context->numStreamingMultiprocessors,

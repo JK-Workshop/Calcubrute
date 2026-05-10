@@ -13,6 +13,10 @@
 //    VK_KHR_DEVICE_ADDRESS_COMMAND_EXTENSION_NAME
 //};
 
+//extern uint32_t CcbLog      = 0u;
+//extern uint32_t CcbLogInfo  = 0u;
+//extern uint32_t CcbLogError = 0u;
+
 struct CcbContext
 {
     VkDevice         device;
@@ -63,16 +67,19 @@ ccbContextInit(struct CcbContext* const p_context JK_NONNULL(),
 void
 ccbContextDestroy(struct CcbContext* const p_context JK_NONNULL());
 
-int
-ccbMalloc(struct CcbContext* const p_context JK_NONNULL(),
-          const size_t             p_hostVisibleSize,
-          const size_t             p_deviceLocalSize);
-
-void
-ccbFree(struct CcbContext* const p_context JK_NONNULL());
+//void
+//ccbContextEnableLog(const uint32_t p_logTypeFlags);
 
 void
 ccbContextPrint(const struct CcbContext* const p_context,
                 FILE*                          p_fp);
+
+int
+ccbMemoryAllocate(struct CcbContext* const p_context JK_NONNULL(),
+                  const uint64_t           p_hostVisibleSize,
+                  const uint64_t           p_deviceLocalSize);
+
+void
+ccbMemoryFree(struct CcbContext* const p_context JK_NONNULL());
 
 #endif // JK_CALCUBRUTE_CONTEXT_H
