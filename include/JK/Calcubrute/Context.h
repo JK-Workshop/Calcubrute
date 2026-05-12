@@ -4,6 +4,7 @@
 #define JK_CALCUBRUTE_CONTEXT_H
 
 #include <JK/Calcubrute/Common.h>
+#include <JK/Calcubrute/Memory.h>
 
 //static constexpr int NUM_EXTENSIONS_REQUIRED = 1;
 //
@@ -28,6 +29,8 @@ struct CcbContext
     uint64_t         hostVisibleDeviceBase;
     uint64_t         deviceLocalDeviceBase;
     //PageTable        pageTables[VK_MAX_DEVICE_GROUP_SIZE];
+    VkQueue          transferQueue;
+    VkQueue          computeQueue;
     VkSemaphore      timelineSemaphore;
     // Device properties
     uint32_t         vendorID;
@@ -43,26 +46,18 @@ struct CcbContext
     uint32_t         maxNumInvocationsPerSubgroup;
     uint32_t         transferQueueFamilyIndex;
     uint32_t         computeQueueFamilyIndex;
-    union {
-        struct { // AMD
-            uint32_t placeHolder;
-        };
-        struct { // INTEL
-            uint32_t placeHolder1;
-        };
-        struct { // NV
-            uint32_t maxNumPushConstBanks;
-            uint32_t maxNumPushDataBanks;
-            uint32_t numStreamingMultiprocessors;
-            uint32_t numSubgroupsPerStreamingMultiprocessor;
-        };
-    };
+    // VK_NV_push_constant_bank
+    uint32_t         maxNumPushConstBanks;
+    uint32_t         maxNumPushDataBanks;
+    // VK_NV_shader_sm_builtins
+    uint32_t         numStreamingMultiprocessors;
+    uint32_t         numSubgroupsPerStreamingMultiprocessor;
 }; // struct CcbContext
 
 int
 ccbContextInit(struct CcbContext* const p_context JK_NONNULL(),
                const VkInstance         p_instance,
-               const uint32_t           p_deviceIndex);
+               const uint32_t           p_deviceGroupIndex);
 
 void
 ccbContextDestroy(struct CcbContext* const p_context JK_NONNULL());
@@ -73,13 +68,5 @@ ccbContextDestroy(struct CcbContext* const p_context JK_NONNULL());
 void
 ccbContextPrint(const struct CcbContext* const p_context,
                 FILE*                          p_fp);
-
-int
-ccbMemoryAllocate(struct CcbContext* const p_context JK_NONNULL(),
-                  const uint64_t           p_hostVisibleSize,
-                  const uint64_t           p_deviceLocalSize);
-
-void
-ccbMemoryFree(struct CcbContext* const p_context JK_NONNULL());
 
 #endif // JK_CALCUBRUTE_CONTEXT_H

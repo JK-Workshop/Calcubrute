@@ -57,14 +57,4 @@ constexpr int CCB_ARGUMENT_ERROR       = -6;
         VARIABLE[i].pNext = P_NEXT;\
     }
 
-#if defined(JK_DEBUG)
-    #define VK_CHECK(RESULT)\
-        if ((RESULT) != VK_SUCCESS) {\
-            fprintf(stderr, "Vulkan error at %s, %s: %d\n", __FILE__, __func__, __LINE__);\
-            exit(EXIT_FAILURE);\
-        }
-#else
-    #define VK_CHECK(RESULT) RESULT
-#endif // JK_DEBUG
-
 #endif // JK_CALCUBRUTE_COMMON_H

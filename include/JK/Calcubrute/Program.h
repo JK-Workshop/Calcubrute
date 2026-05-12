@@ -11,6 +11,8 @@ struct CcbProgram
     VkPipelineLayout pipelineLayout;
 }; // struct Shader
 
+struct CcbProgramInfo
+
 extern struct VkSpecializationInfo                                g_shaderStageSpecializationInfo;
 extern struct VkPipelineShaderStageRequiredSubgroupSizeCreateInfo g_shaderStageSgSizeInfo;
 extern struct VkPipelineCreateFlags2CreateInfo                    g_pipelineFlagsInfo;
@@ -31,10 +33,13 @@ void
 ccbProgramClear(void);
 
 void
-ccbProgramTemplate(const struct VkSpecializationMapEntry* p_mapEntries    JK_NONNULL(),
-                   const uint32_t                         p_numMapEntries,
-                   const void*                            p_data          JK_NONNULL(),
-                   const size_t                           p_dataSize);
+ccbProgramStaticParamerters(const struct VkSpecializationMapEntry* p_mapEntries JK_NONNULL(),
+                            const uint32_t                         p_numMapEntries,
+                            const void*                            p_data       JK_NONNULL(),
+                            const size_t                           p_dataSize);
+
+void
+ccbProgramDynamicParameters()
 
 void
 ccbProgramFixSubgroupSize(const uint32_t p_subgroupSize);

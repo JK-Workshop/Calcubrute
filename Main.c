@@ -3,7 +3,7 @@
 int
 main(int p_numArgs, char** p_args)
 {
-    VK_CHECK(volkInitialize());
+    volkInitialize();
     struct VkApplicationInfo appInfo = {
         .sType            = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pNext            = nullptr,
@@ -15,7 +15,7 @@ main(int p_numArgs, char** p_args)
         .pApplicationInfo = &appInfo,
     };
     VkInstance instance;
-    VK_CHECK(vkCreateInstance(&instanceInfo, nullptr, &instance));
+    vkCreateInstance(&instanceInfo, nullptr, &instance);
     volkLoadInstance(instance);
     auto pContext = malloc(sizeof(struct CcbContext));
     ccbContextInit(pContext, instance, 0u);
