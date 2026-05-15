@@ -5,13 +5,14 @@
 
 #include <JK/Calcubrute/Common.h>
 
-struct CcbProgram
+constexpr uint32_t CCB_PORGRAM_MAX_COMPILE_FLAG_SIZE = 128u;
+
+struct CCBProgram
 {
     VkPipeline       pipeline;
     VkPipelineLayout pipelineLayout;
+    uint32_t         subgroupSize;
 }; // struct Shader
-
-struct CcbProgramInfo
 
 extern struct VkSpecializationInfo                                g_shaderStageSpecializationInfo;
 extern struct VkPipelineShaderStageRequiredSubgroupSizeCreateInfo g_shaderStageSgSizeInfo;
@@ -21,13 +22,13 @@ extern void**                                                     g_pipelinePLas
 extern void**                                                     g_shaderStagePLast;
 
 int
-ccbProgramInit(struct CcbProgram* const p_program JK_NONNULL(),
-               struct CcbContext* const p_context JK_NONNULL(),
+ccbProgramInit(struct CCBProgram* const p_program JK_NONNULL(),
+               struct CCBContext* const p_context JK_NONNULL(),
                const char*              p_path    JK_NONNULL());
 
 void
-ccbProgramDestroy(struct CcbProgram* const p_program JK_NONNULL(),
-                  struct CcbContext* const p_context JK_NONNULL());
+ccbProgramDestroy(struct CCBProgram* const p_program JK_NONNULL(),
+                  struct CCBContext* const p_context JK_NONNULL());
 
 void
 ccbProgramClear(void);
@@ -37,18 +38,5 @@ ccbProgramStaticParamerters(const struct VkSpecializationMapEntry* p_mapEntries 
                             const uint32_t                         p_numMapEntries,
                             const void*                            p_data       JK_NONNULL(),
                             const size_t                           p_dataSize);
-
-void
-ccbProgramDynamicParameters()
-
-void
-ccbProgramFixSubgroupSize(const uint32_t p_subgroupSize);
-
-void
-ccbProgramVarySubgroupSize(void);
-
-void
-ccbProgramPrintStates(void);
-
 
 #endif // JK_CALCUBRUTE_PROGRAM_HPP

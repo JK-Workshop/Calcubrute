@@ -5,14 +5,40 @@
 
 #include <JK/Calcubrute/Common.h>
 
-struct CcbContext;
+constexpr uint32_t CCB_PAGE_SIZE = 0x2000u;
+
+struct CCBContext;
+
+struct CCBMemory
+{
+    struct VkCopyDeviceMemoryInfoKHR memcpyInfo;
+    uint64_t*                        entryMap;
+    VkDeviceMemory                   hostVisibleMemory;
+    VkDeviceMemory                   deviceLocalMemory;
+    uint8_t*                         hostVisibleHostBase;
+    uint64_t                         hostVisibleDeviceBase;
+    uint64_t                         deviceLocalDeviceBase;
+    uint32_t                         numPages;
+    int64_t                          pageToFrameAddOn;
+}; // struct CCBMemory
 
 int
-ccbMemoryAllocate(struct CcbContext* const p_context JK_NONNULL(),
-                  const uint64_t           p_hostVisibleSize,
-                  const uint64_t           p_deviceLocalSize);
+ccbMemoryInit(struct CCBContext* const p_context JK_NONNULL(),
+              struct CCBMemory* const  p_memory  JK_NONNULL(),
+              const uint64_t           p_size);
 
 void
-ccbMemoryFree(struct CcbContext* const p_context JK_NONNULL());
+ccbMemoryDestroy(struct CCBContext* const p_context JK_NONNULL(),
+                 struct CCBMemory*  const p_memory  JK_NONNULL());
+
+void
+ccbMemorySync(struct CCBMemory* const p_memory JK_NONNULL(),
+              VkCommandBuffer         p_commandBuffer);
+
+void
+upload(struct CCBMemory* const p_memory, const uint64_t p_pageBase);
+
+void
+download(struct CCBMemory* const p_memory, const uint64_t p_frameBase);
 
 #endif // JK_CALCUBRUTE_MEMORY_H

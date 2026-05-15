@@ -1,7 +1,6 @@
 // Copyright (c) JK Workshop - All rights reserved
 
 #include <JK/Calcubrute/Program.h>
-#include "shader/WgTile.spv.h"
 
 struct VkSpecializationInfo g_shaderStageSpecializationInfo = {
     .mapEntryCount = 0u,      // vary, optional
@@ -92,7 +91,7 @@ programInitCreateShaderModule(const VkDevice  p_device,
 
 inline int
 ccbProgramInit(struct CcbProgram* const           p_program,
-               struct CcbContext* const           p_context,
+               struct CCBContext* const           p_context,
                const VkDescriptorSetLayout* const p_setLayouts,
                const uint32_t                     p_numSetLayouts)
 {
@@ -105,7 +104,7 @@ ccbProgramInit(struct CcbProgram* const           p_program,
 
 inline void
 ccbProgramDestroy(struct CcbProgram* const p_program,
-                  struct CcbContext* const p_context)
+                  struct CCBContext* const p_context)
 {
     if (p_program->pipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(p_context->device, p_program->pipeline, nullptr);

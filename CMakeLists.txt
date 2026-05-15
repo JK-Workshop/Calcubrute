@@ -29,10 +29,8 @@ target_compile_definitions(Calcubrute
 PUBLIC
     $<$<CONFIG:Debug>:
         JK_DEBUG
-        CCB_LOG
     >
     $<$<CONFIG:Release>:
-        CCB_LOG
     >
 )
 
