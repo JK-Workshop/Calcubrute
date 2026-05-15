@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <immintrin.h>
+
 #define VOLK_NO_PROTOTYPE
 #include <volk/volk.h>
 

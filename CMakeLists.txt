@@ -13,6 +13,7 @@ add_library(Calcubrute
 STATIC
     src/Context.c
     src/Memory.c
+    src/Tensor2D.c
 )
 
 target_include_directories(Calcubrute

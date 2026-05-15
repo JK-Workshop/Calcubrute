@@ -5,6 +5,7 @@
 
 #include "Calcubrute/Common.h"
 #include "Calcubrute/Context.h"
+#include "Calcubrute/Tensor2D.h"
 //#include "Calcubrute/Program.h"
 //#include "Calcubrute/Work.h"
 

@@ -237,24 +237,36 @@ memoryInitInitPageTable(struct CCBMemory* const p_memory,
         return -1;
     }
 
-    p_memory->numPages = p_size >> 13;
+    p_memory->numPages = p_size >> 13u;
+
+    p_memory->freePagePool = malloc(p_memory->numPages * sizeof(uint64_t));
+    p_memory->freePagePoolTop = p_memory->numPages - 1u;
+    if (p_memory->freePagePool == nullptr) {
+        sprintf(CcbErrorMessage, "failed to allocate available page pool");
+        return -1;
+    }
+    for (uint32_t i = 0u; i < p_memory->numPages; ++i) {
+        p_memory->freePagePool[i] = p_memory->hostVisibleDeviceBase + (i << 13);
+    }
+
     p_memory->memcpyInfo = (struct VkCopyDeviceMemoryInfoKHR) {
         .sType       = VK_STRUCTURE_TYPE_COPY_DEVICE_MEMORY_INFO_KHR,
         .pNext       = nullptr,
         .regionCount = 0u,
         .pRegions    = malloc(p_memory->numPages * sizeof(struct VkDeviceMemoryCopyKHR))
     };
+    if (p_memory->memcpyInfo.pRegions == nullptr) {
+        sprintf(CcbErrorMessage, "failed to allocate memory for memcpy regions");
+        return -1;
+    }
 
     // Initialize each region
     auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions;
     for (uint32_t i = 0u; i < p_memory->numPages; ++i) {
         r[i].sType = VK_STRUCTURE_TYPE_DEVICE_MEMORY_COPY_KHR;
         r[i].pNext = nullptr;
-    }
-
-    if (p_memory->memcpyInfo.pRegions == nullptr) {
-        sprintf(CcbErrorMessage, "failed to allocate memory for memcpy regions");
-        return -1;
+        r[i].srcRange.size = CCB_PAGE_SIZE;
+        r[i].dstRange.size = CCB_PAGE_SIZE;
     }
 
     return 0;
@@ -296,8 +308,6 @@ ccbMemoryInit(struct CCBContext* const p_context,
         goto OnMmapError;
     }
 
-    printf("[Calcubrute Info] Mapped host visible memory to 0x%p\n", p_memory->hostVisibleHostBase);
-
     result = memoryInitBindBuffers(p_memory, p_context->device);
     if (result != 0) {
         goto OnPostMmapError;
@@ -306,21 +316,10 @@ ccbMemoryInit(struct CCBContext* const p_context,
     memoryInitGetDeviceAddresses(p_memory, p_context->device);
     p_memory->pageToFrameAddOn = (int64_t)p_memory->deviceLocalDeviceBase - p_memory->hostVisibleDeviceBase;
 
-    printf("[Calcubrute Info] Host visible memory starts at device address 0x%llx\n", p_memory->hostVisibleDeviceBase);
-    printf("[Calcubrute Info] Device local memory starts at device address 0x%llx\n", p_memory->deviceLocalDeviceBase);
-    if (p_memory->pageToFrameAddOn >= 0ll) {
-        printf("[Calcubrute Info] Host visible base + 0x%llx = Device local base\n", p_memory->pageToFrameAddOn);
-    }
-    else {
-        printf("[Calcubrute Info] Host visible base - 0x%llx = Device local base\n", -p_memory->pageToFrameAddOn);
-    }
-
     result = memoryInitInitPageTable(p_memory, p_size - CCB_PAGE_SIZE);
     if (result != 0) {
         goto OnPostMmapError;
     }
-
-    printf("[Calcubrute Info] Number of pages is %u\n", p_memory->numPages);
 
     return 0;
 
@@ -368,7 +367,9 @@ ccbMemoryDestroy(struct CCBContext* const p_context,
     // Destroy page table
     if (p_memory->memcpyInfo.pRegions != nullptr) {
         free((void*)p_memory->memcpyInfo.pRegions);
+        free(p_memory->freePagePool);
         p_memory->memcpyInfo.pRegions = nullptr;
+        p_memory->freePagePool        = nullptr;
     }
 
     // Free host visible memory
@@ -404,9 +405,9 @@ memoryUploadPage(struct VkCopyDeviceMemoryInfoKHR* const p_memcpyInfo,
                  const uint64_t                          p_pageBase)
 {
     auto r = (struct VkDeviceMemoryCopyKHR*)p_memcpyInfo->pRegions + p_memcpyInfo->regionCount++;
-    r->srcRange = (struct VkDeviceAddressRangeKHR){p_pageBase, CCB_PAGE_SIZE};
+    r->srcRange.address = p_pageBase;
     r->srcFlags = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
-    r->dstRange = (struct VkDeviceAddressRangeKHR){p_pageBase + p_addOn, CCB_PAGE_SIZE};
+    r->dstRange.address = p_pageBase + p_addOn;
     r->dstFlags = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
 }
 
@@ -416,9 +417,9 @@ memoryDownloadFrame(struct VkCopyDeviceMemoryInfoKHR* const p_memcpyInfo,
                     const uint64_t                          p_frameBase)
 {
     auto r = (struct VkDeviceMemoryCopyKHR*)p_memcpyInfo->pRegions + p_memcpyInfo->regionCount++;
-    r->srcRange = (struct VkDeviceAddressRangeKHR){p_frameBase, CCB_PAGE_SIZE};
+    r->srcRange.address = p_frameBase;
     r->srcFlags = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
-    r->dstRange = (struct VkDeviceAddressRangeKHR){p_frameBase - p_addOn, CCB_PAGE_SIZE};
+    r->dstRange.address = p_frameBase - p_addOn;
     r->dstFlags = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
 }
 
@@ -428,6 +429,24 @@ ccbMemorySync(struct CCBMemory* const p_memory JK_NONNULL(),
 {
     vkCmdCopyMemoryKHR(p_commandBuffer, &p_memory->memcpyInfo);
     p_memory->memcpyInfo.regionCount = 0u; // clear copy queue
+}
+
+inline void
+ccbMemoryPrint(struct CCBMemory* const p_memory,
+               FILE*                   p_fp)
+{
+    fprintf(p_fp, "Host Visible Memory Host Base: 0x%p\n"
+                  "Host Visible Memory Device Base: 0x%llx\n"
+                  "Device Local Memory Device Base: 0x%llx\n"
+                  "Number of Pages: %u\n"
+                  "Page to Frame Add On: 0x%llx\n"
+                  "Number of Pages Consumed: %u\n",
+                  p_memory->hostVisibleHostBase,
+                  p_memory->hostVisibleDeviceBase,
+                  p_memory->deviceLocalDeviceBase,
+                  p_memory->numPages,
+                  p_memory->pageToFrameAddOn,
+                  p_memory->numPages - p_memory->freePagePoolTop - 1u);
 }
 
 inline void

@@ -12,7 +12,6 @@ struct CCBContext;
 struct CCBMemory
 {
     struct VkCopyDeviceMemoryInfoKHR memcpyInfo;
-    uint64_t*                        entryMap;
     VkDeviceMemory                   hostVisibleMemory;
     VkDeviceMemory                   deviceLocalMemory;
     uint8_t*                         hostVisibleHostBase;
@@ -20,6 +19,9 @@ struct CCBMemory
     uint64_t                         deviceLocalDeviceBase;
     uint32_t                         numPages;
     int64_t                          pageToFrameAddOn;
+    uint64_t*                        entryMap;
+    uint64_t*                        freePagePool;
+    uint32_t                         freePagePoolTop; // decrease to consume, increase to return
 }; // struct CCBMemory
 
 int
@@ -29,11 +31,15 @@ ccbMemoryInit(struct CCBContext* const p_context JK_NONNULL(),
 
 void
 ccbMemoryDestroy(struct CCBContext* const p_context JK_NONNULL(),
-                 struct CCBMemory*  const p_memory  JK_NONNULL());
+                 struct CCBMemory* const  p_memory  JK_NONNULL());
 
 void
 ccbMemorySync(struct CCBMemory* const p_memory JK_NONNULL(),
               VkCommandBuffer         p_commandBuffer);
+
+void
+ccbMemoryPrint(struct CCBMemory* const p_memory JK_NONNULL(),
+               FILE*                   p_fp);
 
 void
 upload(struct CCBMemory* const p_memory, const uint64_t p_pageBase);
