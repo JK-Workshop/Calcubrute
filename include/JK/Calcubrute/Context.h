@@ -11,7 +11,6 @@ struct CCBContext
     VkPhysicalDevice  physicalDevices[VK_MAX_DEVICE_GROUP_SIZE];
     VkDevice          device;
     uint32_t          numPhysicalDevices;
-    VkQueue           transferQueue;
     VkQueue           computeQueue;
     VkSemaphore       timelineSemaphore;
     // Device properties
@@ -45,7 +44,7 @@ void
 ccbContextDestroy(struct CCBContext* const p_context JK_NONNULL());
 
 //void
-//CCBContextEnableLog(const uint32_t p_logTypeFlags);
+//ccbContextEnableLog(const uint32_t p_logTypeFlags);
 
 void
 ccbContextPrint(const struct CCBContext* const p_context,

@@ -7,8 +7,60 @@ constexpr uint32_t DEVICE_VENDOR_INTEL = 0x8086u;
 constexpr uint32_t DEVICE_VENDOR_NV    = 0x10DEu;
 //constexpr uint32_t DEVICE_VENDER_ARM   =
 
-static uint32_t                      s_numExtensions;
-static struct VkExtensionProperties* s_extensions = nullptr;
+static struct VkPhysicalDeviceVulkan11Features s_vk11Feat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+    .pNext = nullptr,
+};
+static struct VkPhysicalDeviceVulkan12Features s_vk12Feat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+    .pNext = &s_vk11Feat,
+    .shaderFloat16     = VK_TRUE,
+    .vulkanMemoryModel = VK_TRUE,
+};
+static struct VkPhysicalDeviceVulkan13Features s_vk13Feat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+    .pNext = &s_vk12Feat,
+};
+static struct VkPhysicalDeviceVulkan14Features s_vk14Feat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
+    .pNext = &s_vk13Feat,
+};
+// VK_KHR_cooperative_matrix
+static struct VkPhysicalDeviceCooperativeMatrixFeaturesKHR s_coopMatFeat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR,
+    .pNext = nullptr,
+    .cooperativeMatrix                   = VK_TRUE,
+    .cooperativeMatrixRobustBufferAccess = VK_TRUE
+};
+// VK_KHR_device_address_commands
+static struct VkPhysicalDeviceDeviceAddressCommandsFeaturesKHR s_devAddrCmdFeat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_ADDRESS_COMMANDS_FEATURES_KHR,
+    .pNext = nullptr,
+    .deviceAddressCommands = VK_TRUE
+};
+// VK_NV_shader_sm_builtins
+static struct VkPhysicalDeviceShaderSMBuiltinsFeaturesNV s_smFeat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SM_BUILTINS_FEATURES_NV,
+    .pNext = nullptr,
+    .shaderSMBuiltins = VK_TRUE
+};
+// VK_NV_push_constant_bank
+static struct VkPhysicalDevicePushConstantBankFeaturesNV s_pcBankFeat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_CONSTANT_BANK_FEATURES_NV,
+    .pNext = nullptr,
+    .pushConstantBank = VK_TRUE
+};
+static struct VkPhysicalDeviceFeatures2 s_feat = {
+    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+    .pNext = nullptr,
+    .features = {0}
+};
+static void* s_pLast = &s_vk13Feat;
+
+static uint32_t                      s_numExts;
+static struct VkExtensionProperties* s_exts = nullptr;
+static const char*                   s_enabledExtNames[128];
+static uint32_t                      s_numEnabledExts = 0u;
 
 char CcbErrorMessage[CCB_MAX_ERROR_MESSAGE_LENGTH] = "no error";
 
@@ -22,26 +74,44 @@ static inline int
 contextInitCheckExtensions(struct CCBContext* const p_context)
 {
     // Query for extensions
-    vkEnumerateDeviceExtensionProperties(p_context->physicalDevices[0], nullptr, &s_numExtensions, nullptr);
+    vkEnumerateDeviceExtensionProperties(p_context->physicalDevices[0], nullptr, &s_numExts, nullptr);
 
     // To be freed inside ccbContextInit
-    s_extensions = malloc(s_numExtensions * sizeof(struct VkExtensionProperties));
-    if (s_extensions == nullptr) {
+    s_exts = malloc(s_numExts * sizeof(struct VkExtensionProperties));
+    if (s_exts == nullptr) {
         sprintf(CcbErrorMessage, "failed to allocate memory for extensions");
         return -1;
     }
 
-    vkEnumerateDeviceExtensionProperties(p_context->physicalDevices[0], nullptr, &s_numExtensions, s_extensions);
+    vkEnumerateDeviceExtensionProperties(p_context->physicalDevices[0], nullptr, &s_numExts, s_exts);
 
     // Check extensions and validate corresponding fields in CCBContext to any nonzero values, one field per extension
-    for (uint32_t i = 0u; i < s_numExtensions; ++i) {
-        if (strcmp(VK_NV_PUSH_CONSTANT_BANK_EXTENSION_NAME, s_extensions[i].extensionName) == 0) {
-            p_context->maxNumPushConstBanks = 1u;
+    for (uint32_t i = 0u; i < s_numExts; ++i) {
+        if (strcmp(VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME;
+            s_coopMatFeat.pNext = s_pLast;
+            s_pLast = &s_coopMatFeat;
         }
-        if (strcmp(VK_NV_SHADER_SM_BUILTINS_EXTENSION_NAME, s_extensions[i].extensionName) == 0) {
+        if (strcmp(VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME;
+            s_devAddrCmdFeat.pNext = s_pLast;
+            s_pLast = &s_devAddrCmdFeat;
+        }
+        if (strcmp(VK_NV_PUSH_CONSTANT_BANK_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
+            p_context->maxNumPushConstBanks = 1u;
+            s_enabledExtNames[s_numEnabledExts++] = VK_NV_PUSH_CONSTANT_BANK_EXTENSION_NAME;
+            s_pcBankFeat.pNext = s_pLast;
+            s_pLast = &s_pcBankFeat;
+        }
+        if (strcmp(VK_NV_SHADER_SM_BUILTINS_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
             p_context->numStreamingMultiprocessors = 1u;
+            s_enabledExtNames[s_numEnabledExts++] = VK_NV_SHADER_SM_BUILTINS_EXTENSION_NAME;
+            s_smFeat.pNext = s_pLast;
+            s_pLast = &s_smFeat;
         }
     }
+
+    s_feat.pNext = s_pLast;
     return 0;
 }
 
@@ -186,7 +256,6 @@ contextInitCreateTimelineSemaphore(struct CCBContext* const p_context)
 
     result = vkCreateSemaphore(p_context->device, &info, nullptr, &p_context->timelineSemaphore);
     if (result != VK_SUCCESS) {
-        p_context->timelineSemaphore = VK_NULL_HANDLE;
         sprintf(CcbErrorMessage, "failed to create timeline semaphore with VkResult %i", result);
         return -1;
     }
@@ -302,6 +371,9 @@ ccbContextInit(struct CCBContext* const p_context,
                const uint32_t           p_deviceGroupIndex)
 {
     int result;
+
+    // The only invalidation for a CCBContext object
+    p_context->device = VK_NULL_HANDLE;
     p_context->maxNumPushConstBanks        = 0u; // VK_NV_push_constant_bank
     p_context->numStreamingMultiprocessors = 0u; // VK_NV_shader_sm_builtins
 
@@ -318,6 +390,7 @@ ccbContextInit(struct CCBContext* const p_context,
         goto OnPreCreateDeviceError;
     }
     contextInitGetProperties(p_context);
+    free(s_exts);
 
     // Create the logical device
     const float priority = 1.0f;
@@ -339,34 +412,20 @@ ccbContextInit(struct CCBContext* const p_context,
             .pQueuePriorities = &priority
         }
     };
-    
-    // Extensions and features
-    const char* extensionNames[] = {
-        VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME
-    };
-    struct VkPhysicalDeviceDeviceAddressCommandsFeaturesKHR deviceAddressFeat
-        = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_ADDRESS_COMMANDS_FEATURES_KHR,
-           nullptr, VK_TRUE};
-    struct VkPhysicalDeviceFeatures2 feat = {
-        .sType    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext    = &deviceAddressFeat,
-        .features = {0}
-    };
-
     struct VkDeviceGroupDeviceCreateInfo deviceGroupInfo = {
         .sType                = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
-        .pNext                = &feat,
+        .pNext                = &s_feat,
         .physicalDeviceCount  = p_context->numPhysicalDevices,
         .pPhysicalDevices     = p_context->physicalDevices
     };
     struct VkDeviceCreateInfo info = {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext                   = &deviceGroupInfo,
-        .flags                   = 0,
-        .queueCreateInfoCount    = 2,
+        .flags                   = 0u,
+        .queueCreateInfoCount    = 2u,
         .pQueueCreateInfos       = queueInfos,
-        .enabledExtensionCount   = 1u,
-        .ppEnabledExtensionNames = extensionNames,
+        .enabledExtensionCount   = s_numEnabledExts,
+        .ppEnabledExtensionNames = s_enabledExtNames,
         .pEnabledFeatures        = nullptr
     };
     
@@ -377,16 +436,19 @@ ccbContextInit(struct CCBContext* const p_context,
     }
     volkLoadDevice(p_context->device);
 
-    // Retrieve transfer and compute queues
+    printf("[Calcubrute Info] Enabled extensions:\n");
+    for (uint32_t i = 0u; i < s_numEnabledExts; ++i) {
+        printf("\t%s\n", s_enabledExtNames[i]);
+    }
+
+    // Retrieve compute queue
     struct VkDeviceQueueInfo2 deviceQueueInfo = {
         .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
         .pNext            = nullptr,
         .flags            = 0u,
-        .queueFamilyIndex = p_context->transferQueueFamilyIndex,
+        .queueFamilyIndex = p_context->computeQueueFamilyIndex,
         .queueIndex       = 0u
     };
-    vkGetDeviceQueue2(p_context->device, &deviceQueueInfo, &p_context->transferQueue);
-    deviceQueueInfo.queueFamilyIndex = p_context->computeQueueFamilyIndex;
     vkGetDeviceQueue2(p_context->device, &deviceQueueInfo, &p_context->computeQueue);
 
     result = contextInitCreateTimelineSemaphore(p_context);
@@ -412,24 +474,23 @@ OnCreateSemaphoreError:
     vkDestroyDevice(p_context->device, nullptr);
 
 OnCreateDeviceError:
+    // Invalidate again, prevent future free on nullptr
     p_context->device = VK_NULL_HANDLE;
 
 OnPreCreateDeviceError:
-    free(s_extensions);
+    free(s_exts);
     return -1;
 }
 
 inline void
 ccbContextDestroy(struct CCBContext* const p_context)
 {
-    if (p_context->timelineSemaphore != VK_NULL_HANDLE) {
-        vkDestroySemaphore(p_context->device, p_context->timelineSemaphore, nullptr);
-        p_context->timelineSemaphore = VK_NULL_HANDLE;
+    if (p_context->device == VK_NULL_HANDLE) {
+        return;
     }
-    if (p_context->device != VK_NULL_HANDLE) {
-        vkDestroyDevice(p_context->device, nullptr);
-        p_context->device = VK_NULL_HANDLE;
-    }
+
+    vkDestroySemaphore(p_context->device, p_context->timelineSemaphore, nullptr);
+    vkDestroyDevice(p_context->device, nullptr);
 }
 
 inline void

@@ -1,6 +1,7 @@
 // Copyright (c) JK Workshop - All rights reserved
 
 #include <JK/Calcubrute/Tensor2D.h>
+#include <JK/Calcubrute/Memory.h>
 
 inline int
 ccbTensor2DAllocate(struct CCBTensor2D* const p_tensor2D,
@@ -57,8 +58,11 @@ ccbTensor2DPrint(struct CCBTensor2D* const p_tensor2D,
                  FILE*                     p_fp)
 {
     const uint32_t numPagesRequired = p_tensor2D->dimX * p_tensor2D->dimY >> 12u;
-    fprintf(p_fp, "Dimension: %ux%u\n", p_tensor2D->dimX, p_tensor2D->dimY);
-    fprintf(p_fp, "Host Bases (Pages Consumed):\n");
+    fprintf(p_fp, "Dimension: %ux%u\n"
+                  "Number of pages required: %u\n"
+                  "Host Bases (Pages Consumed):\n",
+                  p_tensor2D->dimX, p_tensor2D->dimY,
+                  numPagesRequired);
     for (uint32_t i = 0u; i < numPagesRequired; ++i) {
         fprintf(p_fp, "\t0x%llx\n", p_tensor2D->hostBases[i]);
     }

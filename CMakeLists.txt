@@ -46,7 +46,6 @@ PUBLIC
         -O3
         -flto
         -march=core-avx2
-        -Rpass=inline
         -Rpass-missed=inline
         -Rpass-analysis=inline
     >

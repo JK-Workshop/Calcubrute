@@ -37,22 +37,10 @@ main(int p_numArgs, char** p_args)
     // ccbContextPrint(pContext, stdout);
     puts("");
     ccbMemoryPrint(pMemory, stdout);
-    puts("Y:");
-    ccbTensor2DPrint(&Y, stdout);
-    puts("X:");
-    ccbTensor2DPrint(&X, stdout);
 
     ccbTensor2DFree(&Y, pMemory);
 
-    puts("");
-    ccbMemoryPrint(pMemory, stdout);
-
     ccbTensor2DAllocate(&Z, pMemory, 256u, 256u);
-
-    puts("");
-    ccbMemoryPrint(pMemory, stdout);
-    puts("Z:");
-    ccbTensor2DPrint(&Z, stdout);
 
     ccbTensor2DFree(&X, pMemory);
     ccbTensor2DFree(&Z, pMemory);
@@ -134,6 +122,7 @@ main(int p_numArgs, char** p_args)
 CleanUp:
     ccbMemoryDestroy(pContext, pMemory);
     ccbContextDestroy(pContext);
+    free(pMemory);
     free(pContext);
     vkDestroyInstance(instance, nullptr);
     return 0;

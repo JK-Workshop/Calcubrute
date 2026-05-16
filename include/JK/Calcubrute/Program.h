@@ -7,6 +7,8 @@
 
 constexpr uint32_t CCB_PORGRAM_MAX_COMPILE_FLAG_SIZE = 128u;
 
+struct 
+
 struct CCBProgram
 {
     VkPipeline       pipeline;
@@ -31,12 +33,6 @@ ccbProgramDestroy(struct CCBProgram* const p_program JK_NONNULL(),
                   struct CCBContext* const p_context JK_NONNULL());
 
 void
-ccbProgramClear(void);
-
-void
-ccbProgramStaticParamerters(const struct VkSpecializationMapEntry* p_mapEntries JK_NONNULL(),
-                            const uint32_t                         p_numMapEntries,
-                            const void*                            p_data       JK_NONNULL(),
-                            const size_t                           p_dataSize);
+ccbProgramLoadTensor2D(struct CCBProgram* const p_program JK_NONULL());
 
 #endif // JK_CALCUBRUTE_PROGRAM_HPP

@@ -4,7 +4,8 @@
 #define JK_CALCUBRUTE_TENSOR_2D_H
 
 #include <JK/Calcubrute/Common.h>
-#include <JK/Calcubrute/Memory.h>
+
+struct CCBMemory;
 
 struct CCBTensor2D
 {
