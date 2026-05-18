@@ -23,7 +23,6 @@ struct CCBMemory
     uint64_t*                        entryMap;
     uint64_t*                        freePagePool;
     uint32_t                         freePagePoolTop; // decrease to consume, increase to return
-    uint64_t                         freeFrameBase;
     VkCommandPool                    transferCmdPool;
     VkCommandBuffer                  transferCmdBuffer;
     VkQueue                          transferQueue;
@@ -50,14 +49,15 @@ ccbMemoryTransferFlush(struct CCBMemory* const             p_memory JK_NONNULL()
                        const struct VkSemaphoreSubmitInfo* p_waitInfo,
                        const struct VkSemaphoreSubmitInfo* p_signalInfo);
 
-uint64_t
+void
 ccbMemoryUploadTensor2D(struct CCBMemory* const   p_memory   JK_NONNULL(),
-                        struct CCBTensor2D* const p_tensor2D JK_NONNULL());
+                        struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
+                        uint64_t                  p_deviceLocalBase);
 
 void
 ccbMemoryDownloadTensor2D(struct CCBMemory* const   p_memory   JK_NONNULL(),
                           struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
-                          uint64_t                  p_tensor2DBase);
+                          uint64_t                  p_deviceLocalBase);
 
 void
 ccbMemoryPrint(struct CCBMemory* const p_memory JK_NONNULL(),

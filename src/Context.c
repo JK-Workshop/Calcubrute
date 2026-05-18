@@ -1,66 +1,15 @@
 // Copyright (c) JK Workshop - All rights reserved
 
 #include <JK/Calcubrute/Context.h>
+#include "DefaultFeatures.h"
 
 constexpr uint32_t DEVICE_VENDOR_AMD   = 0x1002u;
 constexpr uint32_t DEVICE_VENDOR_INTEL = 0x8086u;
 constexpr uint32_t DEVICE_VENDOR_NV    = 0x10DEu;
 //constexpr uint32_t DEVICE_VENDER_ARM   =
 
-static struct VkPhysicalDeviceVulkan11Features s_vk11Feat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-    .pNext = nullptr,
-};
-static struct VkPhysicalDeviceVulkan12Features s_vk12Feat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-    .pNext = &s_vk11Feat,
-    .shaderFloat16     = VK_TRUE,
-    .vulkanMemoryModel = VK_TRUE,
-};
-static struct VkPhysicalDeviceVulkan13Features s_vk13Feat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-    .pNext = &s_vk12Feat,
-};
-static struct VkPhysicalDeviceVulkan14Features s_vk14Feat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
-    .pNext = &s_vk13Feat,
-};
-// VK_KHR_cooperative_matrix
-static struct VkPhysicalDeviceCooperativeMatrixFeaturesKHR s_coopMatFeat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR,
-    .pNext = nullptr,
-    .cooperativeMatrix                   = VK_TRUE,
-    .cooperativeMatrixRobustBufferAccess = VK_TRUE
-};
-// VK_KHR_device_address_commands
-static struct VkPhysicalDeviceDeviceAddressCommandsFeaturesKHR s_devAddrCmdFeat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_ADDRESS_COMMANDS_FEATURES_KHR,
-    .pNext = nullptr,
-    .deviceAddressCommands = VK_TRUE
-};
-// VK_NV_shader_sm_builtins
-static struct VkPhysicalDeviceShaderSMBuiltinsFeaturesNV s_smFeat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SM_BUILTINS_FEATURES_NV,
-    .pNext = nullptr,
-    .shaderSMBuiltins = VK_TRUE
-};
-// VK_NV_push_constant_bank
-static struct VkPhysicalDevicePushConstantBankFeaturesNV s_pcBankFeat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_CONSTANT_BANK_FEATURES_NV,
-    .pNext = nullptr,
-    .pushConstantBank = VK_TRUE
-};
-static struct VkPhysicalDeviceFeatures2 s_feat = {
-    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-    .pNext = nullptr,
-    .features = {0}
-};
-static void* s_pLast = &s_vk13Feat;
-
 static uint32_t                      s_numExts;
 static struct VkExtensionProperties* s_exts = nullptr;
-static const char*                   s_enabledExtNames[128];
-static uint32_t                      s_numEnabledExts = 0u;
 
 char CcbErrorMessage[CCB_MAX_ERROR_MESSAGE_LENGTH] = "no error";
 
@@ -87,31 +36,30 @@ contextInitCheckExtensions(struct CCBContext* const p_context)
 
     // Check extensions and validate corresponding fields in CCBContext to any nonzero values, one field per extension
     for (uint32_t i = 0u; i < s_numExts; ++i) {
-        if (strcmp(VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
-            s_enabledExtNames[s_numEnabledExts++] = VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME;
-            s_coopMatFeat.pNext = s_pLast;
-            s_pLast = &s_coopMatFeat;
+        if (strcmp("VK_KHR_cooperative_matrix", s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_cooperative_matrix";
+            s_coopMatFeat.cooperativeMatrix = VK_TRUE;
         }
-        if (strcmp(VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
-            s_enabledExtNames[s_numEnabledExts++] = VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME;
-            s_devAddrCmdFeat.pNext = s_pLast;
-            s_pLast = &s_devAddrCmdFeat;
+        if (strcmp("VK_KHR_device_address_commands", s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_device_address_commands";
+            s_devAddrCmdFeat.deviceAddressCommands = VK_TRUE;
         }
-        if (strcmp(VK_NV_PUSH_CONSTANT_BANK_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
+        if (strcmp("VK_KHR_shader_fma", s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_shader_fma";
+            s_fmaFeat.shaderFmaFloat16 = VK_TRUE;
+        }
+        if (strcmp("VK_NV_push_constant_bank", s_exts[i].extensionName) == 0) {
             p_context->maxNumPushConstBanks = 1u;
-            s_enabledExtNames[s_numEnabledExts++] = VK_NV_PUSH_CONSTANT_BANK_EXTENSION_NAME;
-            s_pcBankFeat.pNext = s_pLast;
-            s_pLast = &s_pcBankFeat;
+            s_enabledExtNames[s_numEnabledExts++] = "VK_NV_push_constant_bank";
+            s_pcBankFeat.pushConstantBank = VK_TRUE;
         }
-        if (strcmp(VK_NV_SHADER_SM_BUILTINS_EXTENSION_NAME, s_exts[i].extensionName) == 0) {
+        if (strcmp("VK_NV_shader_sm_builtins", s_exts[i].extensionName) == 0) {
             p_context->numStreamingMultiprocessors = 1u;
-            s_enabledExtNames[s_numEnabledExts++] = VK_NV_SHADER_SM_BUILTINS_EXTENSION_NAME;
-            s_smFeat.pNext = s_pLast;
-            s_pLast = &s_smFeat;
+            s_enabledExtNames[s_numEnabledExts++] = "VK_NV_shader_sm_builtins";
+            s_smFeat.shaderSMBuiltins = VK_TRUE;
         }
     }
 
-    s_feat.pNext = s_pLast;
     return 0;
 }
 

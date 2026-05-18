@@ -20,13 +20,13 @@ ccbTensor2DAllocate(struct CCBTensor2D* const p_tensor2D,
 
     // Check for free page budget
     if (p_memory->freePagePoolTop + 1u < numPagesRequired) {
-        sprintf(CcbErrorMessage, "out of device memory");
+        sprintf(CcbErrorMessage, "out of host visible memory");
         free(p_tensor2D->hostBases);
         p_tensor2D->hostBases = nullptr;
         return -1;
     }
 
-    // Consume free pages from p_memory->freePagePool
+    // Consume free pages from p_memory->freePagePool, store in p_tensor2D->hostBases
     p_memory->freePagePoolTop -= numPagesRequired;
     memcpy(p_tensor2D->hostBases,
            p_memory->freePagePool + p_memory->freePagePoolTop,
@@ -39,8 +39,9 @@ inline void
 ccbTensor2DFree(struct CCBTensor2D* const p_tensor2D,
                 struct CCBMemory* const   p_memory)
 {
-    // Return pages to p_memory->freePagePool
     const uint32_t numPagesRequired = p_tensor2D->dimX * p_tensor2D->dimY >> 12u;
+
+    // Return pages to p_memory->freePagePool, from p_tensor2D->hostBases
     memcpy(p_memory->freePagePool + p_memory->freePagePoolTop,
            p_tensor2D->hostBases,
            numPagesRequired * sizeof(uint64_t));
@@ -51,6 +52,15 @@ ccbTensor2DFree(struct CCBTensor2D* const p_tensor2D,
         free(p_tensor2D->hostBases);
         p_tensor2D->hostBases = nullptr;
     }
+}
+
+inline float16_t*
+ccbTensor2DAccessPage(const struct CCBTensor2D* const p_tensor2D,
+                      const struct CCBMemory* const   p_memory,
+                      const uint32_t                  p_pageIndex)
+{
+    const int64_t addOn = (int64_t)p_memory->hostVisibleHostBase - p_memory->hostVisibleDeviceBase;
+    return (float16_t*)(p_tensor2D->hostBases[p_pageIndex] + addOn);
 }
 
 inline void

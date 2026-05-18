@@ -24,8 +24,10 @@ void
 ccbTensor2DFree(struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
                 struct CCBMemory* const   p_memory   JK_NONNULL());
 
-// ccbTensor2DAccess(struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
-//                   const uint32_t            p_index);
+float16_t*
+ccbTensor2DAccessPage(const struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
+                      const struct CCBMemory* const   p_memory   JK_NONNULL(),
+                      const uint32_t                  p_pageIndex);
 
 void
 ccbTensor2DPrint(struct CCBTensor2D* const p_tensor2D JK_NONNULL(),

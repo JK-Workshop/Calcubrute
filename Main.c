@@ -29,97 +29,87 @@ main(int p_numArgs, char** p_args)
     ccbContextInit(pContext, instance, 0u);
     ccbMemoryInit(pContext, pMemory, 1ull << 24);
 
-    struct CCBTensor2D X, Y, Z;
-    ccbTensor2DAllocate(&Y, pMemory, 64u, 128u);
-    ccbTensor2DAllocate(&X, pMemory, 4096u, 1024u);
+    struct CCBTensor2D X;
+    ccbTensor2DAllocate(&X, pMemory, 128u, 64u);
     
-    // puts("");
-    // ccbContextPrint(pContext, stdout);
-    puts("");
+    puts("Context");
+    ccbContextPrint(pContext, stdout);
+    puts("Memory");
     ccbMemoryPrint(pMemory, stdout);
 
-    ccbTensor2DFree(&Y, pMemory);
+    float16_t* p = ccbTensor2DAccessPage(&X, pMemory, 1);
+    p[0] = 1.0;
+    p[1] = 2.0;
+    p[2] = 3.0;
 
-    ccbTensor2DAllocate(&Z, pMemory, 256u, 256u);
+    uint64_t deviceLocalBase = pMemory->deviceLocalDeviceBase;
+    ccbMemoryTransferBegin(pMemory, pContext);
+    ccbMemoryUploadTensor2D(pMemory, &X, deviceLocalBase);
+    ccbMemoryTransferEnd(pMemory);
 
-    ccbTensor2DFree(&X, pMemory);
-    ccbTensor2DFree(&Z, pMemory);
+    struct VkSemaphoreSubmitInfo waitInfo = {
+        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .pNext       = nullptr,
+        .semaphore   = pContext->timelineSemaphore,
+        .value       = 0ull,
+        .stageMask   = VK_SHADER_STAGE_COMPUTE_BIT,
+        .deviceIndex = 1u
+    };
+    struct VkSemaphoreSubmitInfo signalInfo = {
+        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .pNext       = nullptr,
+        .semaphore   = pContext->timelineSemaphore,
+        .value       = 114514ull,
+        .stageMask   = VK_SHADER_STAGE_COMPUTE_BIT,
+        .deviceIndex = 1u
+    };
+    ccbMemoryTransferFlush(pMemory, &waitInfo, &signalInfo);
 
-    // VkCommandPool   cmdPool;
-    // VkCommandBuffer cmdBuf;
+    uint64_t done = 114514ull;
+    const struct VkSemaphoreWaitInfo wait = {
+        .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .pNext          = nullptr,
+        .flags          = 0u,
+        .semaphoreCount = 1u,
+        .pSemaphores    = &pContext->timelineSemaphore,
+        .pValues        = &done
+    };
+    result = vkWaitSemaphores(pContext->device, &wait, UINT32_MAX);
+    if (result == VK_TIMEOUT) {
+        fprintf(stderr, "Time out\n");
+        goto CleanUp;
+    }
 
-    // const struct VkCommandPoolCreateInfo cmdPoolInfo = {
-    //     .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-    //     .pNext            = nullptr,
-    //     .flags            = 0u,
-    //     .queueFamilyIndex = pContext->transferQueueFamilyIndex
-    // };
-    // result = vkCreateCommandPool(pContext->device, &cmdPoolInfo, nullptr, &cmdPool);
+    uint64_t value;
+    vkGetSemaphoreCounterValue(pContext->device, pContext->timelineSemaphore, &value);
+    printf("%llu\n", value);
 
-    // const struct VkCommandBufferAllocateInfo cmdBufInfo = {
-    //     .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-    //     .pNext              = nullptr,
-    //     .commandPool        = cmdPool,
-    //     .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-    //     .commandBufferCount = 1u
-    // };
-    // result = vkAllocateCommandBuffers(pContext->device, &cmdBufInfo, &cmdBuf);
+    printf("%f, %f, %f\n", (float)p[0], (float)p[1], (float)p[2]);
+    p[0] = p[1] = p[2] = 0.0;
+    printf("%f, %f, %f\n", (float)p[0], (float)p[1], (float)p[2]);
 
-    // const struct VkCommandBufferBeginInfo beginInfo = {
-    //     .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    //     .pNext            = nullptr,
-    //     .flags            = 0u,
-    //     .pInheritanceInfo = nullptr
-    // };
-    // result = vkBeginCommandBuffer(cmdBuf, &beginInfo);
-    // // uint32_t* base = (uint32_t*)pMemory->hostVisibleHostBase;
-    // // for (uint32_t i = 0u; i < 10u; ++i) {
-    // //     base[i] = i;
-    // // }
-    // const struct VkDeviceAddressRangeKHR range = {pMemory->deviceLocalDeviceBase, 9 * sizeof(uint32_t)};
-    // vkCmdFillMemoryKHR(cmdBuf, &range, VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR, 114514u);
-    // const struct VkMemoryRangeBarrierKHR barrier = {
-    //     .sType               = VK_STRUCTURE_TYPE_MEMORY_RANGE_BARRIER_KHR,
-    //     .pNext               = nullptr,
-    //     .srcStageMask        = VK_PIPELINE_STAGE_2_CLEAR_BIT,
-    //     .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-    //     .dstStageMask        = VK_PIPELINE_STAGE_2_COPY_BIT,
-    //     .dstAccessMask       = VK_ACCESS_2_TRANSFER_READ_BIT,
-    //     .srcQueueFamilyIndex = pContext->transferQueueFamilyIndex,
-    //     .dstQueueFamilyIndex = pContext->transferQueueFamilyIndex,
-    //     .addressRange        = {pMemory->hostVisibleDeviceBase, CCB_PAGE_SIZE},
-    //     .addressFlags        = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR
-    // };
-    // const struct VkDependencyInfo dep = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, &barrier};
-    // vkCmdPipelineBarrier2(cmdBuf, &dep);
-    // download(pMemory, pMemory->deviceLocalDeviceBase);
-    // ccbMemorySync(pMemory, cmdBuf);
-    // result = vkEndCommandBuffer(cmdBuf);
+    ccbMemoryTransferBegin(pMemory, pContext);
+    ccbMemoryDownloadTensor2D(pMemory, &X, deviceLocalBase);
+    ccbMemoryTransferEnd(pMemory);
 
-    // const struct VkCommandBufferSubmitInfo cmdBufSubmitInfo = {
-    //     .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-    //     .pNext         = nullptr,
-    //     .commandBuffer = cmdBuf,
-    //     .deviceMask    = 1u
-    // };
-    // const struct VkSubmitInfo2 submitInfo = {
-    //     .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-    //     .pNext                  = nullptr,
-    //     .flags                  = 0u,
-    //     .commandBufferInfoCount = 1u,
-    //     .pCommandBufferInfos    = &cmdBufSubmitInfo
-    // };
-    // result = vkQueueSubmit2(pContext->transferQueue, 1u, &submitInfo, VK_NULL_HANDLE);
-    // result = vkQueueWaitIdle(pContext->transferQueue);
+    waitInfo.value = 114514ull;
+    signalInfo.value = 1919810ull;
+    ccbMemoryTransferFlush(pMemory, &waitInfo, &signalInfo);
 
-    // auto base = (uint32_t*)pMemory->hostVisibleHostBase;
-    // for (uint32_t i = 0u; i < 10u; ++i) {
-    //     printf("%u: %u\n", i + 1u, base[i]);
-    // }
-    
-    // vkDestroyCommandPool(pContext->device, cmdPool, nullptr);
+    done = 1919810ull;
+    result = vkWaitSemaphores(pContext->device, &wait, UINT32_MAX);
+    if (result == VK_TIMEOUT) {
+        fprintf(stderr, "Time out\n");
+        goto CleanUp;
+    }
+
+    vkGetSemaphoreCounterValue(pContext->device, pContext->timelineSemaphore, &value);
+    printf("%llu\n", value);
+
+    printf("%f, %f, %f\n", (float)p[0], (float)p[1], (float)p[2]);
 
 CleanUp:
+    ccbTensor2DFree(&X, pMemory);
     ccbMemoryDestroy(pContext, pMemory);
     ccbContextDestroy(pContext);
     free(pMemory);

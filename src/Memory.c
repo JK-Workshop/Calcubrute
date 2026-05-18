@@ -13,7 +13,7 @@ memoryInitLocateTypeIndices(VkPhysicalDevice p_physicalDevice,
                             uint32_t* const  p_hi, // host visible index
                             uint32_t* const  p_di) // device local index
 {
-    // Invalidate
+    // Invalidate locally
     *p_hi = *p_di = UINT32_MAX;
 
     // Query memory properties
@@ -166,7 +166,7 @@ memoryInitMmap(struct CCBMemory* const p_memory,
     };
 
     result = vkMapMemory2(p_device, &info, (void**)&p_memory->hostVisibleHostBase);
-    p_memory->hostVisibleHostBase += CCB_PAGE_SIZE;
+    p_memory->hostVisibleHostBase += CCB_PAGE_SIZE; // Warning!
     if (result != VK_SUCCESS) {
         sprintf(CcbErrorMessage, "host visible memory map failed with VkResult %i", result);
         return -1;
@@ -220,7 +220,6 @@ memoryInitInitPageTable(struct CCBMemory* const p_memory,
 
     p_memory->freePagePool    = malloc(p_memory->numPages * sizeof(uint64_t));
     p_memory->freePagePoolTop = p_memory->numPages - 1u;
-    p_memory->freeFrameBase   = p_memory->deviceLocalDeviceBase;
     if (p_memory->freePagePool == nullptr) {
         sprintf(CcbErrorMessage, "failed to allocate available page pool");
         return -1;
@@ -415,16 +414,15 @@ ccbMemoryTransferBegin(struct CCBMemory* const  p_memory,
 
     // Rewind memcpy region stack and free frame stack
     p_memory->memcpyInfo.regionCount = 0u;
-    p_memory->freeFrameBase = p_memory->deviceLocalDeviceBase;
 
-    // Reset transfer command pool along with all derived command buffers
+    // Reset transfer command pool along with all allocated command buffers
     result = vkResetCommandPool(p_context->device, p_memory->transferCmdPool, 0u);
     if (result != VK_SUCCESS) {
         sprintf(CcbErrorMessage, "failed to reset transfer command pool with VkResult %i", result);
         return -1;
     }
 
-    // Begin transfer command buffer
+    // Begin recording transfer commands
     const struct VkCommandBufferBeginInfo cmdBufBeginInfo = {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext            = nullptr,
@@ -448,7 +446,7 @@ ccbMemoryTransferEnd(struct CCBMemory* const p_memory)
     // Record all memcpy regions
     vkCmdCopyMemoryKHR(p_memory->transferCmdBuffer, &p_memory->memcpyInfo);
 
-    // End transfer command buffer
+    // End recording transfer commands
     result = vkEndCommandBuffer(p_memory->transferCmdBuffer);
     if (result != VK_SUCCESS) {
         sprintf(CcbErrorMessage, "failed to end transfer command buffer with VkResult %i", result);
@@ -483,40 +481,35 @@ ccbMemoryTransferFlush(struct CCBMemory* const             p_memory,
     vkQueueSubmit2(p_memory->transferQueue, 1u, &submitInfo, VK_NULL_HANDLE);
 }
 
-inline uint64_t
+inline void
 ccbMemoryUploadTensor2D(struct CCBMemory* const   p_memory,
-                        struct CCBTensor2D* const p_tensor2D)
+                        struct CCBTensor2D* const p_tensor2D,
+                        uint64_t                  p_deviceLocalBase)
 {
-    uint64_t deviceBase = p_memory->freeFrameBase;
     const uint32_t numPagesRequired = p_tensor2D->dimX * p_tensor2D->dimY >> 12u;
     for (uint32_t i = 0u; i < numPagesRequired; ++i) {
-        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions
-               + p_memory->memcpyInfo.regionCount++;
+        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions + p_memory->memcpyInfo.regionCount++;
         r->srcRange.address = p_tensor2D->hostBases[i];
         r->srcFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
-        r->dstRange.address = p_memory->freeFrameBase;
-        r->dstFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR
-                            | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
-        p_memory->freeFrameBase += CCB_PAGE_SIZE;
+        r->dstRange.address = p_deviceLocalBase;
+        r->dstFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
+        p_deviceLocalBase += CCB_PAGE_SIZE;
     }
-    return deviceBase;
 }
 
 inline void
 ccbMemoryDownloadTensor2D(struct CCBMemory* const   p_memory,
                           struct CCBTensor2D* const p_tensor2D,
-                          uint64_t                  p_tensor2DBase)
+                          uint64_t                  p_deviceLocalBase)
 {
     const uint32_t numPagesRequired = p_tensor2D->dimX * p_tensor2D->dimY >> 12u;
     for (uint32_t i = 0u; i < numPagesRequired; ++i) {
-        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions
-               + p_memory->memcpyInfo.regionCount++;
-        r->srcRange.address = p_tensor2DBase;
-        r->srcFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR
-                            | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
+        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions + p_memory->memcpyInfo.regionCount++;
+        r->srcRange.address = p_deviceLocalBase;
+        r->srcFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
         r->dstRange.address = p_tensor2D->hostBases[i];
         r->dstFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
-        p_tensor2DBase += CCB_PAGE_SIZE;
+        p_deviceLocalBase += CCB_PAGE_SIZE;
     }
 }
 
