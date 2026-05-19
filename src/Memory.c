@@ -219,7 +219,7 @@ memoryInitInitPageTable(struct CCBMemory* const p_memory,
     p_memory->numPages = p_size >> 13u;
 
     p_memory->freePagePool    = malloc(p_memory->numPages * sizeof(uint64_t));
-    p_memory->freePagePoolTop = p_memory->numPages - 1u;
+    p_memory->freePagePoolTop = p_memory->numPages;
     if (p_memory->freePagePool == nullptr) {
         sprintf(CcbErrorMessage, "failed to allocate available page pool");
         return -1;
@@ -526,5 +526,5 @@ ccbMemoryPrint(struct CCBMemory* const p_memory,
                   p_memory->hostVisibleDeviceBase,
                   p_memory->deviceLocalDeviceBase,
                   p_memory->numPages,
-                  p_memory->numPages - p_memory->freePagePoolTop - 1u);
+                  p_memory->numPages - p_memory->freePagePoolTop);
 }

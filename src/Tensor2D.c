@@ -19,7 +19,7 @@ ccbTensor2DAllocate(struct CCBTensor2D* const p_tensor2D,
     }
 
     // Check for free page budget
-    if (p_memory->freePagePoolTop + 1u < numPagesRequired) {
+    if (p_memory->freePagePoolTop < numPagesRequired) {
         sprintf(CcbErrorMessage, "out of host visible memory");
         free(p_tensor2D->hostBases);
         p_tensor2D->hostBases = nullptr;
@@ -59,7 +59,8 @@ ccbTensor2DAccessPage(const struct CCBTensor2D* const p_tensor2D,
                       const struct CCBMemory* const   p_memory,
                       const uint32_t                  p_pageIndex)
 {
-    const int64_t addOn = (int64_t)p_memory->hostVisibleHostBase - p_memory->hostVisibleDeviceBase;
+    const int64_t addOn = (int64_t)p_memory->hostVisibleHostBase
+                        - p_memory->hostVisibleDeviceBase;
     return (float16_t*)(p_tensor2D->hostBases[p_pageIndex] + addOn);
 }
 

@@ -37,7 +37,7 @@ main(int p_numArgs, char** p_args)
     puts("Memory");
     ccbMemoryPrint(pMemory, stdout);
 
-    float16_t* p = ccbTensor2DAccessPage(&X, pMemory, 1);
+    float16_t* p = ccbTensor2DAccessPage(&X, pMemory, 0);
     p[0] = 1.0;
     p[1] = 2.0;
     p[2] = 3.0;
