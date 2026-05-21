@@ -11,7 +11,7 @@ constexpr uint32_t DEVICE_VENDOR_NV    = 0x10DEu;
 static uint32_t                      s_numExts;
 static struct VkExtensionProperties* s_exts = nullptr;
 
-char CcbErrorMessage[CCB_MAX_ERROR_MESSAGE_LENGTH] = "no error";
+char CcbErrMsg[CCB_MAX_ERROR_MESSAGE_LENGTH] = "no error";
 
 /**
  * @brief Retrieve the whole extension list from the specified p_physicalDevice
@@ -22,41 +22,43 @@ char CcbErrorMessage[CCB_MAX_ERROR_MESSAGE_LENGTH] = "no error";
 static inline int
 contextInitCheckExtensions(struct CCBContext* const p_context)
 {
+    // Query for features
+    vkGetPhysicalDeviceFeatures2(p_context->physicalDevices[0], &s_feat);
+
     // Query for extensions
     vkEnumerateDeviceExtensionProperties(p_context->physicalDevices[0], nullptr, &s_numExts, nullptr);
-
-    // To be freed inside ccbContextInit
-    s_exts = malloc(s_numExts * sizeof(struct VkExtensionProperties));
+    s_exts = malloc(s_numExts * sizeof(struct VkExtensionProperties)); // to be freed inside ccbContextInit
     if (s_exts == nullptr) {
-        sprintf(CcbErrorMessage, "failed to allocate memory for extensions");
+        sprintf(CcbErrMsg, "failed to allocate memory for extensions");
         return -1;
     }
-
     vkEnumerateDeviceExtensionProperties(p_context->physicalDevices[0], nullptr, &s_numExts, s_exts);
 
     // Check extensions and validate corresponding fields in CCBContext to any nonzero values, one field per extension
     for (uint32_t i = 0u; i < s_numExts; ++i) {
         if (strcmp("VK_KHR_cooperative_matrix", s_exts[i].extensionName) == 0) {
             s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_cooperative_matrix";
-            s_coopMatFeat.cooperativeMatrix = VK_TRUE;
+            s_coopMatFeat.cooperativeMatrixRobustBufferAccess = VK_FALSE;
         }
         if (strcmp("VK_KHR_device_address_commands", s_exts[i].extensionName) == 0) {
             s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_device_address_commands";
-            s_devAddrCmdFeat.deviceAddressCommands = VK_TRUE;
+        }
+        // Depricated if VK_VERSION_1_4
+        if (strcmp("VK_KHR_map_memory2", s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_map_memory2";
         }
         if (strcmp("VK_KHR_shader_fma", s_exts[i].extensionName) == 0) {
             s_enabledExtNames[s_numEnabledExts++] = "VK_KHR_shader_fma";
-            s_fmaFeat.shaderFmaFloat16 = VK_TRUE;
+            s_fmaFeat.shaderFmaFloat64 = VK_FALSE;
+        }
+        if (strcmp("VK_NV_cooperative_matrix_2", s_exts[i].extensionName) == 0) {
+            s_enabledExtNames[s_numEnabledExts++] = "VK_NV_cooperative_matrix_2";
         }
         if (strcmp("VK_NV_push_constant_bank", s_exts[i].extensionName) == 0) {
-            p_context->maxNumPushConstBanks = 1u;
             s_enabledExtNames[s_numEnabledExts++] = "VK_NV_push_constant_bank";
-            s_pcBankFeat.pushConstantBank = VK_TRUE;
         }
         if (strcmp("VK_NV_shader_sm_builtins", s_exts[i].extensionName) == 0) {
-            p_context->numStreamingMultiprocessors = 1u;
             s_enabledExtNames[s_numEnabledExts++] = "VK_NV_shader_sm_builtins";
-            s_smFeat.shaderSMBuiltins = VK_TRUE;
         }
     }
 
@@ -81,14 +83,14 @@ contextInitPickDeviceGroup(struct CCBContext* const p_context,
     vkEnumeratePhysicalDeviceGroups(p_instance, &n, nullptr);
 
     if (p_deviceGroupIndex >= n) {
-        sprintf(CcbErrorMessage, "invalid device group index");
+        sprintf(CcbErrMsg, "invalid device group index");
         return -1;
     }
 
     struct VkPhysicalDeviceGroupProperties* p;
     p = malloc(n * sizeof(struct VkPhysicalDeviceGroupProperties));
     if (p == nullptr) {
-        sprintf(CcbErrorMessage, "failed to allocate memory for device group properties");
+        sprintf(CcbErrMsg, "failed to allocate memory for device group properties");
         return -1;
     }
 
@@ -123,7 +125,7 @@ contextInitLocateQueueFamilyIndices(struct CCBContext* const p_context)
     struct VkQueueFamilyProperties2* p;
     p = malloc(n * sizeof(struct VkQueueFamilyProperties2));
     if (p == nullptr) {
-        sprintf(CcbErrorMessage, "failed to allocate memory for queue family properties");
+        sprintf(CcbErrMsg, "failed to allocate memory for queue family properties");
         return -1;
     }
 
@@ -165,11 +167,11 @@ contextInitLocateQueueFamilyIndices(struct CCBContext* const p_context)
 
     // Check and return
     if (p_context->transferQueueFamilyIndex == -1) {
-        sprintf(CcbErrorMessage, "failed to locate transfer queue family index");
+        sprintf(CcbErrMsg, "failed to locate transfer queue family index");
         goto OnError;
     }
     if (p_context->computeQueueFamilyIndex == -1) {
-        sprintf(CcbErrorMessage, "failed to locate compute queue family index");
+        sprintf(CcbErrMsg, "failed to locate compute queue family index");
         goto OnError;
     }
 
@@ -204,7 +206,7 @@ contextInitCreateTimelineSemaphore(struct CCBContext* const p_context)
 
     result = vkCreateSemaphore(p_context->device, &info, nullptr, &p_context->timelineSemaphore);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to create timeline semaphore with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to create timeline semaphore with VkResult %i", result);
         return -1;
     }
 
@@ -243,11 +245,11 @@ contextInitGetPropertiesNV(struct CCBContext* const     p_context,
         = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SM_BUILTINS_PROPERTIES_NV};
     
     // Chain supported structs
-    if (p_context->maxNumPushConstBanks) {
+    if (s_pcBankFeat.pushConstantBank == VK_TRUE) {
         pcBank.pNext = p_pLast;
         p_pLast = &pcBank;
     }
-    if (p_context->numStreamingMultiprocessors) {
+    if (s_smFeat.shaderSMBuiltins == VK_TRUE) {
         sm.pNext = p_pLast;
         p_pLast = &sm;
     }
@@ -322,8 +324,6 @@ ccbContextInit(struct CCBContext* const p_context,
 
     // The only invalidation for a CCBContext object
     p_context->device = VK_NULL_HANDLE;
-    p_context->maxNumPushConstBanks        = 0u; // VK_NV_push_constant_bank
-    p_context->numStreamingMultiprocessors = 0u; // VK_NV_shader_sm_builtins
 
     result = contextInitPickDeviceGroup(p_context, p_instance, p_deviceGroupIndex);
     if (result != 0) {
@@ -331,6 +331,18 @@ ccbContextInit(struct CCBContext* const p_context,
     }
     result = contextInitCheckExtensions(p_context);
     if (result != 0) {
+        goto OnPreCreateDeviceError;
+    }
+    if (s_devAddrCmdFeat.deviceAddressCommands == VK_FALSE) {
+        sprintf(CcbErrMsg, "VK_KHR_device_address_commands unsupproted");
+        goto OnPreCreateDeviceError;
+    }
+    if (s_fmaFeat.shaderFmaFloat16 == VK_FALSE) {
+        sprintf(CcbErrMsg, "VK_KHR_shader_fma::float16 unsupported");
+        goto OnPreCreateDeviceError;
+    }
+    if (s_fmaFeat.shaderFmaFloat32 == VK_FALSE) {
+        sprintf(CcbErrMsg, "VK_KHR_shader_fma::float32 unsupported");
         goto OnPreCreateDeviceError;
     }
     result = contextInitLocateQueueFamilyIndices(p_context);
@@ -379,15 +391,10 @@ ccbContextInit(struct CCBContext* const p_context,
     
     result = vkCreateDevice(p_context->physicalDevices[0], &info, nullptr, &p_context->device);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to create logical device with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to create logical device with VkResult %i", result);
         goto OnCreateDeviceError;
     }
     volkLoadDevice(p_context->device);
-
-    printf("[Calcubrute Info] Enabled extensions:\n");
-    for (uint32_t i = 0u; i < s_numEnabledExts; ++i) {
-        printf("\t%s\n", s_enabledExtNames[i]);
-    }
 
     // Retrieve compute queue
     struct VkDeviceQueueInfo2 deviceQueueInfo = {
@@ -407,7 +414,7 @@ ccbContextInit(struct CCBContext* const p_context,
     uint64_t value;
     result = vkGetSemaphoreCounterValue(p_context->device, p_context->timelineSemaphore, &value);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to get timeline semaphore value");
+        sprintf(CcbErrMsg, "failed to get timeline semaphore value");
         goto OnGetSemaphoreCounterValueError;
     }
 
@@ -441,26 +448,64 @@ ccbContextDestroy(struct CCBContext* const p_context)
     vkDestroyDevice(p_context->device, nullptr);
 }
 
+static inline void
+contextPrintEnabledFeatures(FILE* p_fp)
+{
+    fprintf(p_fp, "|__ VK_KHR_cooperative_matrix\n"
+                  "|   |__ cooperative matrix            %s\n"
+                  "|   |__ robust buffer access          %s\n"
+                  "|__ VK_KHR_device_address_commands    %s\n"
+                  "|__ VK_KHR_shader_fma\n"
+                  "|   |__ float16                       %s\n"
+                  "|   |__ float32                       %s\n"
+                  "|   |__ float64                       %s\n"
+                  "|__ VK_NV_cooperative_matrix_2\n"
+                  "|   |__ workgroup scope               %s\n"
+                  "|   |__ flexible dimensions           %s\n"
+                  "|   |__ reductions                    %s\n"
+                  "|   |__ conversions                   %s\n"
+                  "|   |__ per element operations        %s\n"
+                  "|   |__ tensor addressing             %s\n"
+                  "|   |__ block loads                   %s\n"
+                  "|__ VK_NV_shader_sm_builtins          %s\n"
+                  "|__ VK_NV_push_constant_bank          %s\n",
+                  s_coopMatFeat.cooperativeMatrix                      ? "ON" : "OFF",
+                  s_coopMatFeat.cooperativeMatrixRobustBufferAccess    ? "ON" : "OFF",
+                  s_devAddrCmdFeat.deviceAddressCommands               ? "ON" : "OFF",
+                  s_fmaFeat.shaderFmaFloat16                           ? "ON" : "OFF",
+                  s_fmaFeat.shaderFmaFloat32                           ? "ON" : "OFF",
+                  s_fmaFeat.shaderFmaFloat64                           ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixWorkgroupScope       ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixFlexibleDimensions   ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixReductions           ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixConversions          ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixPerElementOperations ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixTensorAddressing     ? "ON" : "OFF",
+                  s_coopMat2Feat.cooperativeMatrixBlockLoads           ? "ON" : "OFF",
+                  s_smFeat.shaderSMBuiltins                            ? "ON" : "OFF",
+                  s_pcBankFeat.pushConstantBank                        ? "ON" : "OFF");
+}
+
 inline void
 ccbContextPrint(const struct CCBContext* const p_context,
                 FILE*                          p_fp)
 {
-    fprintf(p_fp, "Device: (%s)x%u\n"
-                  "Driver: %s %s\n"
-                  "Vulkan Version: %u.%u.%u\n"
-                  "Max Push Constant Size: 0x%x\n"
-                  "Max Uniform Buffer Size: 0x%x\n"
-                  "Max Workgroup Memory Size: 0x%x\n"
-                  "Max Memory Allocation Size: 0x%llx\n"
-                  "Min Number of Invocations per Subgroup: %u\n"
-                  "Max Number of Invocations per Subgroup: %u\n"
-                  "Transfer Queue Family Index: %u\n"
-                  "Compute Queue Family Index: %u\n",
-                  p_context->deviceName, p_context->numPhysicalDevices,
-                  p_context->driverName, p_context->driverInfo,
+    fprintf(p_fp, "[Calcubrute Info] Context:\n"
+                  "|__ [%s %s %u.%u.%u] * %u\n",
+                  p_context->deviceName, p_context->driverInfo,
                   VK_API_VERSION_MAJOR(p_context->vulkanVersion),
                   VK_API_VERSION_MINOR(p_context->vulkanVersion),
                   VK_API_VERSION_PATCH(p_context->vulkanVersion),
+                  p_context->numPhysicalDevices);
+    contextPrintEnabledFeatures(p_fp);
+    fprintf(p_fp, "|__ Max Push Constant Size: 0x%x\n"
+                  "|__ Max Uniform Buffer Size: 0x%x\n"
+                  "|__ Max Workgroup Memory Size: 0x%x\n"
+                  "|__ Max Memory Allocation Size: 0x%llx\n"
+                  "|__ Min Number of Invocations per Subgroup: %u\n"
+                  "|__ Max Number of Invocations per Subgroup: %u\n"
+                  "|__ Transfer Queue Family Index: %u\n"
+                  "|__ Compute Queue Family Index: %u\n",
                   p_context->maxPushConstSize,
                   p_context->maxUniformBufferSize,
                   p_context->maxWorkgroupMemorySize,
@@ -477,29 +522,19 @@ ccbContextPrint(const struct CCBContext* const p_context,
             break;
         case DEVICE_VENDOR_NV:
             // VK_NV_push_constant_bank properties
-            if (p_context->maxNumPushConstBanks) {
-                fprintf(p_fp, "Max Number of Push Constant Banks: %u\n"
-                              "Max Number of Push Data Banks: %u\n",
+            if (s_pcBankFeat.pushConstantBank == VK_TRUE) {
+                fprintf(p_fp, "|__ Max Number of Push Constant Banks: %u\n"
+                              "|__ Max Number of Push Data Banks: %u\n",
                               p_context->maxNumPushConstBanks,
                               p_context->maxNumPushDataBanks);
             }
-            else {
-                fputs("Max Number of Push Constant Banks: -\n"
-                      "Max Number of Push Data Banks: -\n", p_fp);
-            }
-
             // VK_NV_shader_sm_builtins properties
-            if (p_context->numStreamingMultiprocessors) {
-                fprintf(p_fp, "Number of Streaming Multiprocessors: %u\n"
-                              "Number of Subgroups per Streaming Multiprocessor: %u\n",
+            if (s_smFeat.shaderSMBuiltins == VK_TRUE) {
+                fprintf(p_fp, "|__ Number of Streaming Multiprocessors: %u\n"
+                              "|__ Number of Subgroups per Streaming Multiprocessor: %u\n",
                               p_context->numStreamingMultiprocessors,
                               p_context->numSubgroupsPerStreamingMultiprocessor);
             }
-            else {
-                fputs("Number of Streaming Multiprocessors: -\n"
-                      "Number of Subgroups per Streaming Multiprocessor: -\n", p_fp);
-            }
-
             break;
     }
 }

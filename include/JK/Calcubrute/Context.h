@@ -25,6 +25,8 @@ struct CCBContext
     uint64_t          maxMallocSize;
     uint32_t          minNumInvocationsPerSubgroup;
     uint32_t          maxNumInvocationsPerSubgroup;
+    uint32_t          hostVisibleIndex;
+    uint32_t          deviceLoaalIndex;
     uint32_t          transferQueueFamilyIndex;
     uint32_t          computeQueueFamilyIndex;
     // VK_NV_push_constant_bank

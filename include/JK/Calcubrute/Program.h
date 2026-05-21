@@ -33,6 +33,6 @@ ccbProgramDestroy(struct CCBProgram* const p_program JK_NONNULL(),
                   struct CCBContext* const p_context JK_NONNULL());
 
 void
-ccbProgramLoadTensor2D(struct CCBProgram* const p_program JK_NONULL());
+ccbProgramLoadTensor(struct CCBProgram* const p_program JK_NONULL());
 
 #endif // JK_CALCUBRUTE_PROGRAM_HPP

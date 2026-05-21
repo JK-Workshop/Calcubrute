@@ -4,8 +4,7 @@
 #define JK_CALCUBRUTE_MEMORY_H
 
 #include <JK/Calcubrute/Common.h>
-#include <JK/Calcubrute/Tensor1D.h>
-#include <JK/Calcubrute/Tensor2D.h>
+#include <JK/Calcubrute/Tensor.h>
 
 constexpr uint32_t CCB_PAGE_SIZE = 0x2000u;
 
@@ -50,14 +49,18 @@ ccbMemoryTransferFlush(struct CCBMemory* const             p_memory JK_NONNULL()
                        const struct VkSemaphoreSubmitInfo* p_signalInfo);
 
 void
-ccbMemoryUploadTensor2D(struct CCBMemory* const   p_memory   JK_NONNULL(),
-                        struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
-                        uint64_t                  p_deviceLocalBase);
+ccbMemoryUploadTensor(struct CCBMemory* const p_memory JK_NONNULL(),
+                      struct CCBTensor* const p_tensor JK_NONNULL(),
+                      uint64_t                p_deviceLocalBase);
 
 void
-ccbMemoryDownloadTensor2D(struct CCBMemory* const   p_memory   JK_NONNULL(),
-                          struct CCBTensor2D* const p_tensor2D JK_NONNULL(),
-                          uint64_t                  p_deviceLocalBase);
+ccbMemoryDownloadTensor(struct CCBMemory* const p_memory JK_NONNULL(),
+                        struct CCBTensor* const p_tensor JK_NONNULL(),
+                        uint64_t                p_deviceLocalBase);
+
+void
+ccbMemoryReleaseQueue(struct CCBMemory* const  p_memory  JK_NONNULL(),
+                      struct CCBContext* const p_context JK_NONNULL());
 
 void
 ccbMemoryPrint(struct CCBMemory* const p_memory JK_NONNULL(),

@@ -35,11 +35,11 @@ memoryInitLocateTypeIndices(VkPhysicalDevice p_physicalDevice,
 
     // Check and return
     if (*p_hi == UINT32_MAX) {
-        sprintf(CcbErrorMessage, "failed to locate host visible memory type index");
+        sprintf(CcbErrMsg, "failed to locate host visible memory type index");
         return -1;
     }
     if (*p_di == UINT32_MAX) {
-        sprintf(CcbErrorMessage, "failed to locate device local memory type index");
+        sprintf(CcbErrMsg, "failed to locate device local memory type index");
         return -1;
     }
 
@@ -61,15 +61,16 @@ memoryInitCreateBuffers(VkDevice        p_device,
                | VK_BUFFER_USAGE_2_TRANSFER_DST_BIT
                | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
     };
+    const uint32_t queueFamilyIndices[] = {1, 2};
     struct VkBufferCreateInfo bufInfo = {
         .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .pNext                 = &bufUsageInfo,
         .flags                 = 0u,
         .size                  = *p_hs,
         .usage                 = 0u,
-        .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = 0u,
-        .pQueueFamilyIndices   = nullptr
+        .sharingMode           = VK_SHARING_MODE_CONCURRENT,
+        .queueFamilyIndexCount = 2u,
+        .pQueueFamilyIndices   = queueFamilyIndices
     };
     const struct VkDeviceBufferMemoryRequirements reqInfo = {
         .sType       = VK_STRUCTURE_TYPE_DEVICE_BUFFER_MEMORY_REQUIREMENTS,
@@ -83,7 +84,7 @@ memoryInitCreateBuffers(VkDevice        p_device,
     *p_hs = bufInfo.size = req.memoryRequirements.size + CCB_PAGE_SIZE;
     result = vkCreateBuffer(p_device, &bufInfo, nullptr, &s_hostVisibleBuffer);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "host visible buffer creation failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "host visible buffer creation failed with VkResult %i", result);
         return -1;
     }
 
@@ -97,7 +98,7 @@ memoryInitCreateBuffers(VkDevice        p_device,
     result = vkCreateBuffer(p_device, &bufInfo, nullptr, &s_deviceLocalBuffer);
     if (result != VK_SUCCESS) {
         vkDestroyBuffer(p_device, s_hostVisibleBuffer, nullptr);
-        sprintf(CcbErrorMessage, "device local buffer creation failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "device local buffer creation failed with VkResult %i", result);
         return -1;
     }
 
@@ -131,7 +132,7 @@ memoryInitMalloc(struct CCBMemory* const p_memory,
     // Allocate host visible memory
     result = vkAllocateMemory(p_device, &mallocInfo, nullptr, &p_memory->hostVisibleMemory);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "host visible memory allocation failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "host visible memory allocation failed with VkResult %i", result);
         return -1;
     }
 
@@ -143,7 +144,7 @@ memoryInitMalloc(struct CCBMemory* const p_memory,
     result = vkAllocateMemory(p_device, &mallocInfo, nullptr, &p_memory->deviceLocalMemory);
     if (result != VK_SUCCESS) {
         vkFreeMemory(p_device, p_memory->hostVisibleMemory, nullptr);
-        sprintf(CcbErrorMessage, "device local memory allocation failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "device local memory allocation failed with VkResult %i", result);
         return -1;
     }
 
@@ -168,7 +169,7 @@ memoryInitMmap(struct CCBMemory* const p_memory,
     result = vkMapMemory2(p_device, &info, (void**)&p_memory->hostVisibleHostBase);
     p_memory->hostVisibleHostBase += CCB_PAGE_SIZE; // Warning!
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "host visible memory map failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "host visible memory map failed with VkResult %i", result);
         return -1;
     }
 
@@ -200,7 +201,7 @@ memoryInitBindBuffers(struct CCBMemory* const p_memory,
 
     result = vkBindBufferMemory2(p_device, 2u, infos);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "buffer binding failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "buffer binding failed with VkResult %i", result);
         return -1;
     }
 
@@ -212,7 +213,7 @@ memoryInitInitPageTable(struct CCBMemory* const p_memory,
                         const uint64_t          p_size) // must be multiple of CCB_PAGE_SIZE
 {
     if ((p_size & 0x1fffull) != 0ull) {
-        sprintf(CcbErrorMessage, "memory size is not a multiple of page size");
+        sprintf(CcbErrMsg, "memory size is not a multiple of page size");
         return -1;
     }
 
@@ -221,7 +222,7 @@ memoryInitInitPageTable(struct CCBMemory* const p_memory,
     p_memory->freePagePool    = malloc(p_memory->numPages * sizeof(uint64_t));
     p_memory->freePagePoolTop = p_memory->numPages;
     if (p_memory->freePagePool == nullptr) {
-        sprintf(CcbErrorMessage, "failed to allocate available page pool");
+        sprintf(CcbErrMsg, "failed to allocate available page pool");
         return -1;
     }
     for (uint32_t i = 0u; i < p_memory->numPages; ++i) {
@@ -235,7 +236,7 @@ memoryInitInitPageTable(struct CCBMemory* const p_memory,
         .pRegions    = malloc(p_memory->numPages * sizeof(struct VkDeviceMemoryCopyKHR))
     };
     if (p_memory->memcpyInfo.pRegions == nullptr) {
-        sprintf(CcbErrorMessage, "failed to allocate memory for memcpy regions");
+        sprintf(CcbErrMsg, "failed to allocate memory for memcpy regions");
         return -1;
     }
 
@@ -330,7 +331,7 @@ ccbMemoryInit(struct CCBContext* const p_context,
     };
     result = vkCreateCommandPool(p_context->device, &cmdPoolInfo, nullptr, &p_memory->transferCmdPool);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to create transfer command pool with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to create transfer command pool with VkResult %i", result);
         goto OnPostMmapError;
     }
     
@@ -344,7 +345,7 @@ ccbMemoryInit(struct CCBContext* const p_context,
     };
     result = vkAllocateCommandBuffers(p_context->device, &cmdBufInfo, &p_memory->transferCmdBuffer);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to allocate transfer command buffer with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to allocate transfer command buffer with VkResult %i", result);
         goto OnAllocateCmdBufferError;
     }
 
@@ -400,7 +401,7 @@ ccbMemoryDestroy(struct CCBContext* const p_context,
     };
     result = vkUnmapMemory2(p_context->device, &munmapInfo);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "Host visible memory unmap failed with VkResult %i", result);
+        sprintf(CcbErrMsg, "Host visible memory unmap failed with VkResult %i", result);
     }
     vkFreeMemory(p_context->device, p_memory->hostVisibleMemory, nullptr);
     vkFreeMemory(p_context->device, p_memory->deviceLocalMemory, nullptr);
@@ -418,7 +419,7 @@ ccbMemoryTransferBegin(struct CCBMemory* const  p_memory,
     // Reset transfer command pool along with all allocated command buffers
     result = vkResetCommandPool(p_context->device, p_memory->transferCmdPool, 0u);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to reset transfer command pool with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to reset transfer command pool with VkResult %i", result);
         return -1;
     }
 
@@ -431,7 +432,7 @@ ccbMemoryTransferBegin(struct CCBMemory* const  p_memory,
     };
     result = vkBeginCommandBuffer(p_memory->transferCmdBuffer, &cmdBufBeginInfo);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to begin transfer command buffer with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to begin transfer command buffer with VkResult %i", result);
         return -1;
     }
 
@@ -449,7 +450,7 @@ ccbMemoryTransferEnd(struct CCBMemory* const p_memory)
     // End recording transfer commands
     result = vkEndCommandBuffer(p_memory->transferCmdBuffer);
     if (result != VK_SUCCESS) {
-        sprintf(CcbErrorMessage, "failed to end transfer command buffer with VkResult %i", result);
+        sprintf(CcbErrMsg, "failed to end transfer command buffer with VkResult %i", result);
         return -1;
     }
 
@@ -482,14 +483,15 @@ ccbMemoryTransferFlush(struct CCBMemory* const             p_memory,
 }
 
 inline void
-ccbMemoryUploadTensor2D(struct CCBMemory* const   p_memory,
-                        struct CCBTensor2D* const p_tensor2D,
-                        uint64_t                  p_deviceLocalBase)
+ccbMemoryUploadTensor(struct CCBMemory* const p_memory,
+                      struct CCBTensor* const p_tensor,
+                      uint64_t                p_deviceLocalBase)
 {
-    const uint32_t numPagesRequired = p_tensor2D->dimX * p_tensor2D->dimY >> 12u;
+    const uint32_t numPagesRequired = p_tensor->size >> 12;
     for (uint32_t i = 0u; i < numPagesRequired; ++i) {
-        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions + p_memory->memcpyInfo.regionCount++;
-        r->srcRange.address = p_tensor2D->hostBases[i];
+        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions + p_memory->memcpyInfo.regionCount;
+        ++p_memory->memcpyInfo.regionCount;
+        r->srcRange.address = p_tensor->hostBases[i];
         r->srcFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
         r->dstRange.address = p_deviceLocalBase;
         r->dstFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
@@ -498,30 +500,58 @@ ccbMemoryUploadTensor2D(struct CCBMemory* const   p_memory,
 }
 
 inline void
-ccbMemoryDownloadTensor2D(struct CCBMemory* const   p_memory,
-                          struct CCBTensor2D* const p_tensor2D,
-                          uint64_t                  p_deviceLocalBase)
+ccbMemoryDownloadTensor(struct CCBMemory* const p_memory,
+                        struct CCBTensor* const p_tensor,
+                        uint64_t                p_deviceLocalBase)
 {
-    const uint32_t numPagesRequired = p_tensor2D->dimX * p_tensor2D->dimY >> 12u;
+    const uint32_t numPagesRequired = p_tensor->size >> 12;
     for (uint32_t i = 0u; i < numPagesRequired; ++i) {
-        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions + p_memory->memcpyInfo.regionCount++;
+        auto r = (struct VkDeviceMemoryCopyKHR*)p_memory->memcpyInfo.pRegions + p_memory->memcpyInfo.regionCount;
+        ++p_memory->memcpyInfo.regionCount;
         r->srcRange.address = p_deviceLocalBase;
         r->srcFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR;
-        r->dstRange.address = p_tensor2D->hostBases[i];
+        r->dstRange.address = p_tensor->hostBases[i];
         r->dstFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
         p_deviceLocalBase += CCB_PAGE_SIZE;
     }
 }
 
 inline void
+ccbMemoryReleaseQueue(struct CCBMemory* const  p_memory,
+                      struct CCBContext* const p_context)
+{
+    // const struct VkMemoryRangeBarrierKHR barrier = {
+    //     .sType               = VK_STRUCTURE_TYPE_MEMORY_RANGE_BARRIER_KHR,
+    //     .pNext               = nullptr,
+    //     .srcStageMask        = VK_PIPELINE_STAGE_2_COPY_BIT,
+    //     .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+    //     .dstStageMask        = VK_PIPELINE_STAGE_2_NONE,
+    //     .dstAccessMask       = VK_ACCESS_2_NONE,
+    //     .srcQueueFamilyIndex = p_context->transferQueueFamilyIndex,
+    //     .dstQueueFamilyIndex = p_context->computeQueueFamilyIndex,
+    //     .addressRange        = {p_memory->deviceLocalDeviceBase, },
+    //     .addressFlags        = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR | VK_ADDRESS_COMMAND_STORAGE_BUFFER_USAGE_BIT_KHR
+    // };
+    // const struct VkMemoryRangeBarriersInfoKHR info = {
+    //     .sType                   = VK_STRUCTURE_TYPE_MEMORY_RANGE_BARRIERS_INFO_KHR,
+    //     .pNext                   = nullptr,
+    //     .memoryRangeBarrierCount = 1u,
+    //     .pMemoryRangeBarriers    = &barrier
+    // };
+    // const struct VkDependencyInfo dep = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, &info};
+    // vkCmdPipelineBarrier2(p_memory->transferCmdBuffer, &dep);
+}
+
+inline void
 ccbMemoryPrint(struct CCBMemory* const p_memory,
                FILE*                   p_fp)
 {
-    fprintf(p_fp, "Host Visible Memory Host Base: 0x%p\n"
-                  "Host Visible Memory Device Base: 0x%llx\n"
-                  "Device Local Memory Device Base: 0x%llx\n"
-                  "Number of Pages: %u\n"
-                  "Number of Pages Consumed: %u\n",
+    fprintf(p_fp, "[Calcubrute Info] Memory:\n"
+                  "|__ Host Visible Memory Host Base: 0x%p\n"
+                  "|__ Host Visible Memory Device Base: 0x%llx\n"
+                  "|__ Device Local Memory Device Base: 0x%llx\n"
+                  "|__ Number of Pages: %u\n"
+                  "|__ Number of Pages Consumed: %u\n",
                   p_memory->hostVisibleHostBase,
                   p_memory->hostVisibleDeviceBase,
                   p_memory->deviceLocalDeviceBase,

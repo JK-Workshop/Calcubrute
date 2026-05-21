@@ -13,7 +13,7 @@ add_library(Calcubrute
 STATIC
     src/Context.c
     src/Memory.c
-    src/Tensor2D.c
+    src/Tensor.c
 )
 
 target_include_directories(Calcubrute
@@ -50,6 +50,3 @@ PUBLIC
         -Rpass-analysis=inline
     >
 )
-
-add_executable(test Main.c)
-target_link_libraries(test PRIVATE Calcubrute)
