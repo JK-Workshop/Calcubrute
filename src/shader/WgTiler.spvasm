@@ -1,0 +1,125 @@
+; Copyright (c) JK Workshop - All rights reserved
+;
+; Library module providing tiling function for 64x64 blocks
+; Expects 32x32x1 local sizes
+
+OpCapability Int64
+OpCapability Linkage
+OpCapability PhysicalStorageBufferAddresses
+OpCapability Shader
+OpCapability VulkanmemoryModel
+
+OpMemoryModel PhysicalStorageBuffer64 Vulkan
+
+#pragma annotation
+OpDecorate `spSize`       SpecId 0
+OpDecorate `log2(spSize)` SpecId 1
+OpDecorate `tile32x32`    LinkageAttributes "wgTile32x32" Export
+OpDecorate `tile64x64`    LinkageAttributes "wgTile64x64" Export
+#pragma end_annotation
+
+; Variable types
+void             = OpTypeVoid
+u32_t            = OpTypeInt 32 0
+u64_t            = OpTypeInt 64 0
+f16_t            = OpTypeFloat 16
+; Constants
+`0u`               = OpConstant u32_t 0
+`1u`               = OpConstant u32_t 1
+`5u`               = OpConstant u32_t 5
+`6u`               = OpConstant u32_t 6
+`32u`              = OpConstant u32_t 32
+`2048u`            = OpConstant u32_t 2048
+`e12u`             = OpConstant u32_t 4096
+`n32u`             = OpConstant u32_t 0xffffffe0
+`spSize`           = OpSpecConstant u32_t 4096                        ; 64 * 64
+`log2(spSize)`     = OpSpecConstant u32_t 12                          ; log2(spSize)
+`spSize * 32`      = OpSpecConstantO u32_t ShiftLeftLogical `spSize` `5u` ; spSize * 32
+`log2(spSize) + 1` = OpSpecConstantOp u32_t IAdd `log2(spSize)` `1u`      ; log2(spSize) + 1
+; Aggregate types
+f16e12_t          = OpTypeArray f16_t `e12u`
+f16spSize_t       = OpTypeArray f16_t `spSize`
+; Function types
+tile64x64_ft      = OpTypeFunction void wg_f16e12_t wg_f16e12_t pt_f16spSize_t pt_f16spSize_t u32_t u32_t u32_t u32_t u32_t
+; Type pointers
+wg_f16_t          = OpTypePointer Wotkgroup f16_t
+wg_f16e12_t       = OpTypePointer Workgroup f16e12_t
+pt_f16_t          = OpTypePointer PhysicalStorageBuffer f16_t
+pt_f16spSize_t    = OpTypePointer PhysicalStorageBuffer f16spSize_t
+
+; ================
+; void tile32x32()
+; ================
+`tile32x32` = OpFunction void Pure|Inline tile32x32_ft
+
+
+; ====================================================================================
+; void tile64x64(wg_f16e12_t    blkA,
+;                wg_f16e12_t    blkB,
+;                pt_f16spSize_t A,
+;                pt_f16spSize_t B,
+;                u32_t          lx,
+;                u32_t          ly,
+;                u32_t          gx,
+;                u32_t          gy,
+;                u32_t          i)   // multiple of 64
+; ====================================================================================
+`tile64x64` = OpFunction void Pure|Inline tile64x64_ft
+`blkA` = OpFunctionParameter wg_f16e12_t
+`blkB` = OpFunctionParameter wg_f16e12_t
+`A`    = OpFunctionParameter pt_f16spArrLen_t
+`B`    = OpFunctionParameter pt_f16spArrLen_t
+`lx`   = OpFunctionParameter u32_t
+`ly`   = OpFunctionParameter u32_t
+`gx`   = OpFunctionParameter u32_t
+`gy`   = OpFunctionParameter u32_t
+`i`    = OpFunctionParameter u32_t
+
+    `l` = OpLabel
+    `gy * 2`                  = OpShiftLeftLogical u32_t `gy` `1u`
+    `gy % 32`                 = OpLogicalAnd u32_t `gy` `31u`
+    `y`                       = OpIAdd u32_t `gy * 2` `gy % 32`
+    ; Tile A top-left
+    `lx + i`                  = OpIAdd u32_t `lx` `i`
+    `ly * 64`                 = OpShiftLeftLogical u32_t `ly` `6u`
+    `y * spSize`              = OpShiftLeftLogical u32_t `y` `log2(spSize)`
+    `[y][lx + i]`             = OpIAdd u32_t `y * spSize` `lx + i`
+    `&A[y][lx + i]`           = OpAccessChain pt_f16_t `A` `[y][lx + i]`
+    `A[y][lx + i]`            = OpLoad f16_t `&A[y][lx + i]` Aligned 2
+    `[ly][lx]`                = OpIAdd u32_t `ly * 64` `lx`
+    `&blkA[ly][lx]`           = OpAccessChain wg_f16_t `blkA` `[ly][lx]`
+                              OpStore `&blkA[ly][lx]` `A[y][lx + i]` Aligned 2
+    ; Tile A bottom-left
+    `[y + 32][lx + i]`        = OpIAdd u32_t `[y][lx + i]` `spSize * 32`
+    `&A[y + 32][lx + i]`      = OpAccessChain pt_f16_t `A` `[y + 32][lx + i]`
+    `A[y + 32][lx + i]`       = OpLoad f16_t `&A[y + 32][lx + i]` Aligned 2
+    `[ly + 32][lx]`           = OpIAdd u32_t `[ly][lx]` `2048u`
+    `&blkA[ly + 32][lx]`      = OpAccessChain wg_f16_t `blkA` `[ly + 32][lx]`
+                              OpStore `&blkA[ly + 32][lx]` `A[y + 32][lx + i]` Aligned 2
+    ; Tile A top-right
+    `[y][lx + i + 32]`        = OpIAdd u32_t `[y][lx + i]` `32u`
+    `&A[y][lx + i + 32]`      = OpAccessChain pt_f16_t `A` `[y][lx + i + 32]`
+    `A[y][lx + i + 32]`       = OpLoad f16_t `&A[y][lx + i + 32]` Aligned 2
+    `[ly][lx + 32]`           = OpIAdd u32_t `[ly][lx]` `32u`
+    `&blkA[ly][lx + 32]`      = OpAccessChain wg_f16_t `blkA` `[ly][lx + 32]`
+                              OpStore `&blkA[ly][lx + 32]` `A[y][lx + i + 32]` Aligned 2
+    ; Tile A bottom-right
+    `[y + 32][lx + 32]`       = OpIAdd u32_t `[y][lx + 32]` `spSize * 32`
+    `&A[y + 32][lx + 32]`     = OpAccessChain pt_f16_t `A` `[y + 32][lx + 32]`
+    `A[y + 32][lx + 32]`      = OpLoad f16_t `&A[y + 32][lx + 32]` Aligned 2
+    `[ly + 32][lx + 32]`      = OpIAdd u32_t `[ly][lx + 32]` `2048u`
+    `&blkA[ly + 32][lx + 32]` = OpAccessChain wg_f16_t `blkA` `[ly + 32][lx + 32]`
+                              OpStore `&blkA[ly + 32][lx + 32]` `A[y + 32][lx + 32]` Aligned 2
+    ; Tile B top-left
+    `ly + i`                  = OpIAdd u32_t `ly` `i`
+    `(ly + i) * spSize`       = OpShiftLeftLogical u32_t `ly + i` `log2(spSize)`
+    `(ly + i) * 64`           = OpShiftLeftLogical u32_t `ly + i` `6u`
+
+    `[lx + i][2 * gx]`        = OpIAdd u32_t `(ly + i) * spSize` `gx`
+    `&B[ly + i][gx]`          = OpAccessChain pt_f16_t `B` `[ly + i][gx]`
+    `B[ly + i][gx]`           = OpLoad f16_t `&B[ly + i][gx]` Aligned 2
+    `&blkB[ly][lx]`           = OpAccessChain wg_f16_t `blkB` `[ly][lx]`
+                              OpStore `&blkB[ly][lx]` `B[ly + i][gx]` Aligned 2    
+
+OpFunctionEnd
+

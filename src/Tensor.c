@@ -144,7 +144,7 @@ ccbTensorAllocate(struct CCBTensor* const p_tensor,
                   const uint32_t          p_size)
 {
     // 4096 align
-    p_tensor->size = p_size + ((p_size & 4095) ? 4096u : 0u) & -4096;
+    p_tensor->size = p_size + 4095u & ~4095u;
     const uint32_t numPagesRequired = p_tensor->size >> 12;
 
     p_tensor->hostBases = malloc(numPagesRequired * sizeof(uint64_t));
