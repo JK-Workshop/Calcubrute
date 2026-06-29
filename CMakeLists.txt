@@ -19,11 +19,7 @@ STATIC
 target_include_directories(Calcubrute
 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(Calcubrute
-PRIVATE
-    "C:/msys64/clang64/lib/libvolk.a"
+    ${JK_CALCUBRUTE_VOLK_DIR}
 )
 
 target_compile_definitions(Calcubrute
@@ -45,8 +41,5 @@ PUBLIC
     $<$<CONFIG:Release>:
         -O3
         -flto
-        -march=core-avx2
-        -Rpass-missed=inline
-        -Rpass-analysis=inline
     >
 )
