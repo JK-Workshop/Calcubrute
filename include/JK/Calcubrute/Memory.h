@@ -6,64 +6,72 @@
 #include <JK/Calcubrute/Common.h>
 #include <JK/Calcubrute/Tensor.h>
 
-constexpr uint32_t CCB_PAGE_SIZE = 0x2000u;
+#define CCB_HAS_DEVICE_ADDRESS_COMMAND_KHR 1
+
+#define CCB_PAGE_SIZE 8192
+#define CCB_MUL_PAGE_SIZE(N) (N << 13)
+#define CCB_DIV_PAGE_SIZE(N) (N >> 13)
 
 struct CCBContext;
 
 struct CCBMemory
 {
-    struct VkCopyDeviceMemoryInfoKHR memcpyInfo;
-    VkDeviceMemory                   hostVisibleMemory;
-    VkDeviceMemory                   deviceLocalMemory;
-    uint8_t*                         hostVisibleHostBase;
-    uint64_t                         hostVisibleDeviceBase;
-    uint64_t                         deviceLocalDeviceBase;
-    uint32_t                         numPages;
-    uint64_t*                        entryMap;
-    uint64_t*                        freePagePool;
-    uint32_t                         freePagePoolTop; // decrease to consume, increase to return
-    VkCommandPool                    transferCmdPool;
-    VkCommandBuffer                  transferCmdBuffer;
-    VkQueue                          transferQueue;
+#if CCB_HAS_DEVICE_ADDRESS_COMMAND_KHR
+    struct VkCopyDeviceMemoryInfoKHR MemcpyInfo;
+#else
+    struct VkCopyBufferInfo2         MemcpyInfo;
+#endif
+    VkDeviceMemory                   HostVisibleMemory;
+    VkDeviceMemory                   DeviceLocalMemory;
+    uint8_t*                         HostVisibleHostBase;
+    uint64_t                         HostVisibleDeviceBase;
+    uint64_t                         DeviceLocalDeviceBase;
+    uint32_t                         NumPages;
+    uint64_t*                        EntryMap;
+    uint64_t*                        FreePagePool;
+    uint32_t                         FreePagePoolTop; // decrease to consume, increase to return
+    VkCommandPool                    TransferCmdPool;
+    VkCommandBuffer                  TransferCmdBuffer;
+    VkQueue                          TransferQueue;
 }; // struct CCBMemory
 
 int
-ccbMemoryInit(struct CCBContext* const p_context JK_NONNULL(),
-              struct CCBMemory* const  p_memory  JK_NONNULL(),
-              const uint64_t           p_size);
+ccbMemoryInit(struct CCBContext*    p_Context    JK_NONNULL(),
+              struct CCBMemory*     p_Memory     JK_NONNULL(),
+              uint64_t              p_Size);
 
 void
-ccbMemoryDestroy(struct CCBContext* const p_context JK_NONNULL(),
-                 struct CCBMemory* const  p_memory  JK_NONNULL());
+ccbMemoryDestroy(struct CCBContext*    p_Context    JK_NONNULL(),
+                 struct CCBMemory*     p_Memory     JK_NONNULL());
 
 int
-ccbMemoryTransferBegin(struct CCBMemory* const  p_memory JK_NONNULL(),
-                       struct CCBContext* const p_context JK_NONNULL());
+ccbMemoryTransferBegin(struct CCBMemory*     p_Memory     JK_NONNULL(),
+                       struct CCBContext*    p_Context    JK_NONNULL());
 
 int
-ccbMemoryTransferEnd(struct CCBMemory* const p_memory JK_NONNULL());
+ccbMemoryTransferEnd(struct CCBMemory*    p_Memory    JK_NONNULL());
 
 void
-ccbMemoryTransferFlush(struct CCBMemory* const             p_memory JK_NONNULL(),
-                       const struct VkSemaphoreSubmitInfo* p_waitInfo,
-                       const struct VkSemaphoreSubmitInfo* p_signalInfo);
+ccbMemoryTransferFlush(struct CCBMemory*                p_Memory    JK_NONNULL(),
+                       struct VkSemaphoreSubmitInfo*    p_WaitInfo,
+                       struct VkSemaphoreSubmitInfo*    p_SignalInfo);
 
 void
-ccbMemoryUploadTensor(struct CCBMemory* const p_memory JK_NONNULL(),
-                      struct CCBTensor* const p_tensor JK_NONNULL(),
-                      uint64_t                p_deviceLocalBase);
+ccbMemoryUploadTensor(struct CCBMemory*    p_Memory    JK_NONNULL(),
+                      struct CCBTensor*    p_Tensor    JK_NONNULL(),
+                      uint64_t             p_DeviceLocalBase);
 
 void
-ccbMemoryDownloadTensor(struct CCBMemory* const p_memory JK_NONNULL(),
-                        struct CCBTensor* const p_tensor JK_NONNULL(),
-                        uint64_t                p_deviceLocalBase);
+ccbMemoryDownloadTensor(struct CCBMemory*    p_Memory    JK_NONNULL(),
+                        struct CCBTensor*    p_Tensor    JK_NONNULL(),
+                        uint64_t             p_DeviceLocalBase);
 
 void
-ccbMemoryReleaseQueue(struct CCBMemory* const  p_memory  JK_NONNULL(),
-                      struct CCBContext* const p_context JK_NONNULL());
+ccbMemoryReleaseQueue(struct CCBMemory*     p_Memory     JK_NONNULL(),
+                      struct CCBContext*    p_Context    JK_NONNULL());
 
 void
-ccbMemoryPrint(struct CCBMemory* const p_memory JK_NONNULL(),
-               FILE*                   p_fp);
+ccbMemoryPrint(struct CCBMemory*    p_Memory    JK_NONNULL(),
+               int                  p_Fd)
 
 #endif // JK_CALCUBRUTE_MEMORY_H
